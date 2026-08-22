@@ -1,10 +1,12 @@
 """Active exact-session delivery of durable terminal Work results."""
 
 import asyncio
+import json
 
 import pytest
 
 from managed_ingress.delivery import WorkDeliveryCoordinator
+from managed_ingress.models import CompletionThinkOutcome
 from task_runtime.models import FinalPresentation
 from task_runtime.store import WorkStore
 
@@ -22,6 +24,11 @@ class FakeSessions:
         self.active = {"agent-a"}
         self.availability: list[bool] = []
         self.has_checks = 0
+        self.think_calls: list[tuple[str, str, str]] = []
+        self.think_result: CompletionThinkOutcome = "accepted"
+        self.think_error: Exception | None = None
+        self.think_started = asyncio.Event()
+        self.block_think = False
         self.say_calls: list[tuple[str, str]] = []
         self.say_result = True
         self.say_error: Exception | None = None
@@ -33,6 +40,17 @@ class FakeSessions:
         if self.availability:
             return self.availability.pop(0)
         return agent_id in self.active
+
+    async def think_work_result(
+        self, agent_id: str, completion_envelope: str, work_id: str
+    ) -> CompletionThinkOutcome:
+        self.think_calls.append((agent_id, completion_envelope, work_id))
+        self.think_started.set()
+        if self.block_think:
+            await asyncio.Event().wait()
+        if self.think_error is not None:
+            raise self.think_error
+        return self.think_result
 
     async def say_work_result(self, agent_id: str, text: str) -> bool:
         self.say_calls.append((agent_id, text))
@@ -69,7 +87,10 @@ def completed_work(store: WorkStore, key: str = "turn-completed"):
     store.transition(receipt.work_id, "running")
     store.save_final(
         receipt.work_id,
-        FinalPresentation(speech="Tests passed.", inline="Tests passed."),
+        FinalPresentation(
+            speech="The work is done.",
+            inline="Tests passed with full detail.",
+        ),
     )
     return store.transition(receipt.work_id, "completed")
 
@@ -83,7 +104,7 @@ def failed_work(store: WorkStore):
 
 
 @pytest.mark.anyio
-async def test_completed_work_is_spoken_once_and_marked_accepted(store):
+async def test_completed_work_reenters_once_and_marks_injection_accepted(store):
     receipt = completed_work(store)
     sessions = FakeSessions()
     coordinator = WorkDeliveryCoordinator(
@@ -98,7 +119,18 @@ async def test_completed_work_is_spoken_once_and_marked_accepted(store):
         lambda: store.get(receipt.work_id).delivery_state == "accepted",
         "accepted delivery",
     )
-    assert sessions.say_calls == [("agent-a", "Tests passed.")]
+    assert len(sessions.think_calls) == 1
+    agent_id, envelope, work_id = sessions.think_calls[0]
+    marker, encoded = envelope.split("\n", 1)
+    assert agent_id == "agent-a"
+    assert work_id == receipt.work_id
+    assert marker == "LOCAL_WORK_COMPLETED"
+    assert json.loads(encoded) == {
+        "objective": "Run tests",
+        "result": "Tests passed with full detail.",
+        "result_truncated": False,
+    }
+    assert sessions.say_calls == []
     await coordinator.close()
 
 
@@ -118,6 +150,7 @@ async def test_failed_work_speaks_only_its_safe_stored_error(store):
         "accepted failure delivery",
     )
     assert sessions.say_calls == [("agent-a", "Safe failure")]
+    assert sessions.think_calls == []
     await coordinator.close()
 
 
@@ -138,6 +171,7 @@ async def test_cancelled_work_is_never_spoken(store):
     await asyncio.sleep(0)
 
     assert sessions.say_calls == []
+    assert sessions.think_calls == []
     assert store.get(receipt.work_id).delivery_state == "not_ready"
     await coordinator.close()
 
@@ -155,6 +189,7 @@ async def test_missing_session_leaves_delivery_pending(store):
     coordinator.notify(receipt.work_id)
     await wait_until(lambda: sessions.has_checks > 0, "session check")
 
+    assert sessions.think_calls == []
     assert sessions.say_calls == []
     assert store.get(receipt.work_id).delivery_state == "pending_delivery"
     await coordinator.close()
@@ -173,6 +208,7 @@ async def test_workspace_mismatch_leaves_delivery_pending(store):
     coordinator.notify(receipt.work_id)
     await wait_until(lambda: workspace.calls > 0, "workspace check")
 
+    assert sessions.think_calls == []
     assert sessions.say_calls == []
     assert store.get(receipt.work_id).delivery_state == "pending_delivery"
     await coordinator.close()
@@ -191,6 +227,7 @@ async def test_session_loss_after_claim_releases_delivery_to_pending(store):
     coordinator.notify(receipt.work_id)
     await wait_until(lambda: sessions.has_checks == 2, "session revalidation")
 
+    assert sessions.think_calls == []
     assert sessions.say_calls == []
     assert store.get(receipt.work_id).delivery_state == "pending_delivery"
     await coordinator.close()
@@ -200,28 +237,28 @@ async def test_session_loss_after_claim_releases_delivery_to_pending(store):
 async def test_session_unavailable_at_submission_releases_claim(store):
     receipt = completed_work(store)
     sessions = FakeSessions()
-    sessions.say_result = False
+    sessions.think_result = "unavailable"
     coordinator = WorkDeliveryCoordinator(
         store=store, sessions=sessions, workspace=FixedWorkspace()
     )
     await coordinator.start()
 
     coordinator.notify(receipt.work_id)
-    await wait_until(lambda: len(sessions.say_calls) == 1, "submission attempt")
+    await wait_until(lambda: len(sessions.think_calls) == 1, "submission attempt")
     await wait_until(
         lambda: store.get(receipt.work_id).delivery_state == "pending_delivery",
         "released delivery",
     )
 
-    assert sessions.say_calls == [("agent-a", "Tests passed.")]
+    assert sessions.say_calls == []
     await coordinator.close()
 
 
 @pytest.mark.anyio
-async def test_ambiguous_say_failure_becomes_unknown_without_retry(store):
+async def test_ambiguous_think_failure_becomes_unknown_without_retry(store):
     receipt = completed_work(store)
     sessions = FakeSessions()
-    sessions.say_error = ConnectionError("network outcome unknown with SECRET")
+    sessions.think_error = ConnectionError("network outcome unknown with SECRET")
     coordinator = WorkDeliveryCoordinator(
         store=store, sessions=sessions, workspace=FixedWorkspace()
     )
@@ -234,7 +271,75 @@ async def test_ambiguous_say_failure_becomes_unknown_without_retry(store):
         lambda: store.get(receipt.work_id).delivery_state == "delivery_unknown",
         "unknown delivery",
     )
-    assert sessions.say_calls == [("agent-a", "Tests passed.")]
+    assert len(sessions.think_calls) == 1
+    assert sessions.say_calls == []
+    await coordinator.close()
+
+
+@pytest.mark.anyio
+async def test_definite_think_rejection_uses_one_fixed_fallback(store):
+    receipt = completed_work(store)
+    sessions = FakeSessions()
+    sessions.think_result = "rejected"
+    coordinator = WorkDeliveryCoordinator(
+        store=store, sessions=sessions, workspace=FixedWorkspace()
+    )
+    await coordinator.start()
+
+    coordinator.notify(receipt.work_id)
+    coordinator.notify(receipt.work_id)
+
+    await wait_until(
+        lambda: store.get(receipt.work_id).delivery_state == "accepted",
+        "accepted fallback",
+    )
+    assert len(sessions.think_calls) == 1
+    assert sessions.say_calls == [("agent-a", "The work is done.")]
+    await coordinator.close()
+
+
+@pytest.mark.anyio
+async def test_unavailable_fallback_releases_delivery_to_pending(store):
+    receipt = completed_work(store)
+    sessions = FakeSessions()
+    sessions.think_result = "rejected"
+    sessions.say_result = False
+    coordinator = WorkDeliveryCoordinator(
+        store=store, sessions=sessions, workspace=FixedWorkspace()
+    )
+    await coordinator.start()
+
+    coordinator.notify(receipt.work_id)
+    await wait_until(lambda: len(sessions.say_calls) == 1, "fallback attempt")
+    await wait_until(
+        lambda: store.get(receipt.work_id).delivery_state == "pending_delivery",
+        "released fallback",
+    )
+
+    assert len(sessions.think_calls) == 1
+    assert sessions.say_calls == [("agent-a", "The work is done.")]
+    await coordinator.close()
+
+
+@pytest.mark.anyio
+async def test_ambiguous_fallback_failure_becomes_unknown(store):
+    receipt = completed_work(store)
+    sessions = FakeSessions()
+    sessions.think_result = "rejected"
+    sessions.say_error = ConnectionError("fallback outcome unknown")
+    coordinator = WorkDeliveryCoordinator(
+        store=store, sessions=sessions, workspace=FixedWorkspace()
+    )
+    await coordinator.start()
+
+    coordinator.notify(receipt.work_id)
+
+    await wait_until(
+        lambda: store.get(receipt.work_id).delivery_state == "delivery_unknown",
+        "unknown fallback",
+    )
+    assert len(sessions.think_calls) == 1
+    assert sessions.say_calls == [("agent-a", "The work is done.")]
     await coordinator.close()
 
 
@@ -242,19 +347,20 @@ async def test_ambiguous_say_failure_becomes_unknown_without_retry(store):
 async def test_close_marks_an_inflight_submission_unknown(store):
     receipt = completed_work(store)
     sessions = FakeSessions()
-    sessions.block_say = True
+    sessions.block_think = True
     coordinator = WorkDeliveryCoordinator(
         store=store, sessions=sessions, workspace=FixedWorkspace()
     )
     await coordinator.start()
     coordinator.notify(receipt.work_id)
-    await sessions.say_started.wait()
+    await sessions.think_started.wait()
 
     await coordinator.close()
 
     assert store.get(receipt.work_id).delivery_state == "delivery_unknown"
     coordinator.notify(receipt.work_id)
-    assert sessions.say_calls == [("agent-a", "Tests passed.")]
+    assert len(sessions.think_calls) == 1
+    assert sessions.say_calls == []
 
 
 @pytest.mark.anyio
@@ -270,5 +376,6 @@ async def test_notification_before_start_does_not_replay(store):
     await asyncio.sleep(0)
 
     assert sessions.say_calls == []
+    assert sessions.think_calls == []
     assert store.get(receipt.work_id).delivery_state == "pending_delivery"
     await coordinator.close()

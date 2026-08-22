@@ -1,4 +1,4 @@
-"""Proactive terminal Work speech for the exact active Managed Agent session."""
+"""Proactive terminal Work delivery to the exact active Managed Agent session."""
 
 from __future__ import annotations
 
@@ -7,7 +7,9 @@ import logging
 from contextlib import suppress
 from typing import Protocol
 
+from managed_ingress.models import CompletionThinkOutcome
 from task_runtime.models import WorkReceipt
+from task_runtime.presentation import build_completion_envelope
 from task_runtime.store import WorkStore
 
 
@@ -16,6 +18,13 @@ logger = logging.getLogger("uvicorn.error")
 
 class DeliverySessionPort(Protocol):
     def has_work_session(self, agent_id: str) -> bool: ...
+
+    async def think_work_result(
+        self,
+        agent_id: str,
+        completion_envelope: str,
+        work_id: str,
+    ) -> CompletionThinkOutcome: ...
 
     async def say_work_result(self, agent_id: str, text: str) -> bool: ...
 
@@ -82,10 +91,9 @@ class WorkDeliveryCoordinator:
             receipt = self._store.get(work_id)
         except KeyError:
             return
-        speech = self._speech(receipt)
         agent_id = receipt.delivery_agent_id
         if (
-            speech is None
+            not self._is_deliverable(receipt)
             or agent_id is None
             or receipt.delivery_state != "pending_delivery"
             or not self._workspace_matches(receipt)
@@ -104,7 +112,7 @@ class WorkDeliveryCoordinator:
                 self._store.release_delivery(work_id)
                 return
             try:
-                submitted = await self._sessions.say_work_result(agent_id, speech)
+                submitted = await self._submit(claimed, agent_id)
             except asyncio.CancelledError:
                 self._store.mark_delivery_unknown(work_id)
                 raise
@@ -126,10 +134,33 @@ class WorkDeliveryCoordinator:
         identity = self._workspace.current_workspace_identity()
         return identity is not None and identity[0] == receipt.workspace_id
 
-    @staticmethod
-    def _speech(receipt: WorkReceipt) -> str | None:
+    async def _submit(self, receipt: WorkReceipt, agent_id: str) -> bool:
         if receipt.state == "completed" and receipt.final_presentation is not None:
-            return receipt.final_presentation.speech
+            inline = receipt.final_presentation.inline
+            if inline is None:
+                return False
+            envelope = build_completion_envelope(receipt.objective, inline)
+            outcome = await self._sessions.think_work_result(
+                agent_id,
+                envelope,
+                receipt.work_id,
+            )
+            if outcome == "accepted":
+                return True
+            if outcome == "unavailable":
+                return False
+            if outcome == "rejected":
+                return await self._sessions.say_work_result(
+                    agent_id,
+                    receipt.final_presentation.speech,
+                )
+            raise RuntimeError("Unsupported completion think outcome")
         if receipt.state == "failed" and receipt.error:
-            return receipt.error
-        return None
+            return await self._sessions.say_work_result(agent_id, receipt.error)
+        return False
+
+    @staticmethod
+    def _is_deliverable(receipt: WorkReceipt) -> bool:
+        if receipt.state == "completed" and receipt.final_presentation is not None:
+            return receipt.final_presentation.inline is not None
+        return receipt.state == "failed" and bool(receipt.error)

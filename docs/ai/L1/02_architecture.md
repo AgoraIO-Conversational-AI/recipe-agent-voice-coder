@@ -135,7 +135,9 @@ Agent, kept only in memory, and revoked before Agent/tunnel shutdown. A tunnel
 URL change requires an Agent restart because the endpoint is part of the Agent
 configuration.
 
-`WorkDeliveryCoordinator` receives only terminal Work IDs after Task Runtime
+The `/think` completion flow is implemented as an experimental prototype and
+is not a stable contract until its separately authorized live acceptance
+passes. `WorkDeliveryCoordinator` receives only terminal Work IDs after Task Runtime
 commits completed or failed state. Each receipt privately retains its
 originating Agent ID. Completed Work stores a cleaned full inline result and a
 fixed direct-speech fallback. The coordinator revalidates the exact

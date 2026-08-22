@@ -31,6 +31,27 @@ def test_projection_preserves_the_full_durable_result_limit():
     assert projected.inline == "x" * (256 * 1024)
 
 
+def test_projection_front_bounds_oversized_utf8_results():
+    projected = project_final_presentation("树" * 100000)
+
+    assert projected.inline is not None
+    assert len(projected.inline.encode("utf-8")) <= 256 * 1024
+    assert projected.inline == "树" * len(projected.inline)
+
+
+def test_projection_redacts_long_secret_names_and_url_schemes():
+    long_key = "A" * 65 + "TOKEN"
+    long_scheme = "a" * 80
+
+    projected = project_final_presentation(
+        f"{long_key}=private {long_scheme}://user:password@example.com"
+    )
+
+    assert projected.inline == (
+        f"{long_key}=[REDACTED] {long_scheme}://[REDACTED]@example.com"
+    )
+
+
 def test_short_envelope_is_compact_redacted_json():
     envelope = build_completion_envelope(
         "Check API_KEY=private-objective",

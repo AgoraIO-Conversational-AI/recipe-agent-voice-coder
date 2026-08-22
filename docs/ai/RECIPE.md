@@ -132,7 +132,10 @@ intentional `interrupt`. A normal return means input acceptance only. Only a
 received HTTP non-2xx rejection may use one fixed APPEND fallback; ambiguous
 outcomes are never retried. Failed Work keeps bounded direct speech and
 cancelled Work is silent. This does not add Custom LLM, Activity UI, new MCP
-tools, frontend Work authority, or cross-session replay.
+tools, frontend Work authority, or cross-session replay. Managed completion
+re-entry remains an experimental derivative behavior, not a stable recipe
+contract, until separately authorized live acceptance passes quality,
+interruption, transcript-visibility, and no-recursive-tool checks.
 
 Both ends gate these routes behind the same `VOICE_ACP_LOCAL_RUNTIME=1` opt-in.
 The FastAPI backend mounts `/local/*` and `/validation/admin/*` only through

@@ -33,6 +33,7 @@ from .workspace import resolve_project_folder
 
 _MAX_PERMISSION_OPTION_BYTES = 96
 _MAX_PERMISSION_OPTIONS = 8
+_MAX_RESULT_BYTES = 256 * 1024
 _CUSTOM_COMMAND_ERROR = (
     "VOICE_ACP_COMMAND_JSON must be a JSON array of non-empty argument strings"
 )
@@ -109,11 +110,15 @@ class _AcpCallback:
         self._observer: AcpPromptObserver | None = None
         self._session_id: str | None = None
         self._message_chunks: list[str] = []
+        self._message_bytes = 0
+        self._message_limit_reached = False
 
     def activate(self, session_id: str, observer: AcpPromptObserver) -> None:
         self._observer = observer
         self._session_id = session_id
         self._message_chunks = []
+        self._message_bytes = 0
+        self._message_limit_reached = False
 
     def deactivate(self) -> str:
         final_text = _strip_codex_skills_notice(
@@ -122,6 +127,8 @@ class _AcpCallback:
         self._observer = None
         self._session_id = None
         self._message_chunks = []
+        self._message_bytes = 0
+        self._message_limit_reached = False
         return final_text
 
     async def settle_messages(self) -> None:
@@ -146,9 +153,17 @@ class _AcpCallback:
         if isinstance(update, AgentMessageChunk) and isinstance(
             update.content, TextContentBlock
         ):
-            self._message_chunks.append(update.content.text)
-            if len("".join(self._message_chunks).encode("utf-8")) > 256 * 1024:
-                raise RuntimeError("ACP prompt response exceeded the local result limit")
+            if self._message_limit_reached:
+                return
+            remaining = _MAX_RESULT_BYTES - self._message_bytes
+            encoded = update.content.text.encode("utf-8")
+            if len(encoded) > remaining:
+                bounded = encoded[:remaining].decode("utf-8", errors="ignore")
+                self._message_limit_reached = True
+            else:
+                bounded = update.content.text
+            self._message_chunks.append(bounded)
+            self._message_bytes += len(bounded.encode("utf-8"))
             return
         if not isinstance(update, (ToolCallStart, ToolCallProgress)):
             return

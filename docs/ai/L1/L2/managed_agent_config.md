@@ -105,6 +105,8 @@ Agora Think has no APPEND action and returns no generated text or playback
 receipt. `accepted` therefore means input acceptance only. Do not change these
 actions independently of the delivery state machine, add a dynamic
 `update -> think -> restore` sequence, or fall back after an ambiguous call.
+The path remains experimental until its required live acceptance passes; do not
+describe this configuration as stable based on offline tests alone.
 
 ### Change the greeting
 

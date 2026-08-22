@@ -48,8 +48,10 @@ The Managed Work prompt treats the selected Project Folder and registered tools
 as available capabilities, while `start_work` accepts a natural-language goal
 without enumerating anticipated task categories. Completed Work keeps cleaned
 inline detail and re-enters its exact active Agent through a bounded Managed
-`/think` turn; failed Work keeps bounded direct speech and cancelled Work is
-silent. Durable delivery state keeps status lookup authoritative when speech is
+`/think` turn. This path remains an experimental prototype pending required
+live quality, interruption, transcript, and recursion acceptance; it is not a
+stable recipe contract. Failed Work keeps bounded direct speech and cancelled
+Work is silent. Durable delivery state keeps status lookup authoritative when speech is
 unavailable or uncertain. SSE/UI, playback receipts, proactive permission, and
 reconnect replay remain deferred.
 See [ACP Runtime](L1/L2/acp_runtime.md).

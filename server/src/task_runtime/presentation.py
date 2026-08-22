@@ -10,13 +10,15 @@ COMPLETION_MARKER = "LOCAL_WORK_COMPLETED"
 COMPLETION_FALLBACK_SPEECH = "The work is done."
 MAX_COMPLETION_ENVELOPE_BYTES = 8 * 1024
 MAX_COMPLETION_OBJECTIVE_BYTES = 1024
+MAX_DURABLE_INLINE_BYTES = 256 * 1024
 
 
 def project_final_presentation(value: str) -> FinalPresentation:
     """Keep full cleaned detail durable without treating it as ready speech."""
+    cleaned = _clean_text(value)
     return FinalPresentation(
         speech=COMPLETION_FALLBACK_SPEECH,
-        inline=_clean_text(value),
+        inline=_utf8_prefix(cleaned, MAX_DURABLE_INLINE_BYTES).rstrip(),
     )
 
 

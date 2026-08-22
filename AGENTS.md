@@ -89,6 +89,10 @@ The sections below (Start Here, Patterns, Anti-Patterns, etc.) remain the canoni
   APPEND fallback; missing sessions remain pending, and ambiguous submission is
   never retried or followed by speech. Failed Work keeps bounded APPEND speech;
   cancelled Work remains silent. Never filter transcript rows by marker text.
+  Treat this as an experimental completion prototype until an explicitly
+  authorized live check passes conversation quality, interruption recovery,
+  transcript visibility, and no-recursive-tool acceptance. Do not document it
+  as a stable recipe contract before then.
   Never mount this app into FastAPI.
 - `CodexAcpClient` owns its child process and defaults to
   `npx -y @agentclientprotocol/codex-acp@1.1.7` with `INITIAL_AGENT_MODE=agent`.

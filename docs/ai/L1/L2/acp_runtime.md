@@ -177,6 +177,11 @@ and cannot fall back. Failed Work keeps bounded APPEND speech, cancelled Work
 is silent, and a missing Agent or Workspace mismatch leaves the result pending.
 Startup never scans old pending results, so a newer session cannot receive it.
 
+This Managed completion path is an implemented experiment, not a stable recipe
+contract, until an explicitly authorized live session passes conversation
+quality, interruption recovery, transcript visibility, and no-recursive-tool
+acceptance.
+
 SSE/Activity Panel, playback receipts, batching, proactive permission
 announcements, and reconnect rehydration remain deferred. The synthetic Think
 input may be represented as a user-role history item; no frontend text-prefix

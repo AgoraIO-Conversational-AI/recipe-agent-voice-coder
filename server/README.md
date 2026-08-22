@@ -58,6 +58,8 @@ form a short answer from the current conversation. A normal return proves only
 input acceptance. A definite HTTP rejection may use one fixed APPEND fallback;
 an ambiguous outcome is never retried or followed by direct speech. Failed Work
 continues to use bounded APPEND speech and cancellation remains silent.
+This completion path remains experimental pending separately authorized live
+quality, interruption, transcript-visibility, and recursive-tool acceptance.
 
 This assumes the Agora CLI is installed and logged in. The command uses the project selected in your Agora CLI context, which is usually your default account project.
 

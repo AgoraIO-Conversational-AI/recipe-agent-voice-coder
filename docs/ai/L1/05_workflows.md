@@ -94,7 +94,9 @@ The opted-in local FastAPI lifespan starts the Task Runtime, marks interrupted
 nonterminal Work failed, and stops it before ACP and SQLite shutdown. After ACP
 is ready, **Start conversation** prepares the isolated four-tool MCP listener,
 starts ngrok, and binds one capability to the Agora Agent. Completed and failed
-Work completion is submitted once to the exact originating active Agent through
+The following completion path is an experimental prototype pending required
+live acceptance, not a stable recipe contract. Work completion is submitted
+once to the exact originating active Agent through
 a bounded `LOCAL_WORK_COMPLETED` Managed `/think` turn. Listening uses `inject`;
 thinking and speaking use `interrupt`; the produced speech remains
 interruptible. API acceptance is persisted but is not generated-text or

@@ -164,11 +164,11 @@ conversation minutes.
 
 | Command | Result | Evidence |
 | --- | --- | --- |
-| `PYTHONPATH=src pytest tests/acp_runtime/test_acp_client.py -q` | Pass | 21 tests; the exact leading Codex skills-context notice is removed while unrelated and non-leading warnings remain. |
-| `PYTHONPATH=src pytest tests/task_runtime -q` | Pass | 42 tests; completed Work stores fixed fallback speech plus cleaned inline detail, and compact JSON envelopes remain within 8 KiB under UTF-8 and escape expansion. |
+| `PYTHONPATH=src pytest tests/acp_runtime/test_acp_client.py -q` | Pass | 22 tests; the exact leading Codex skills-context notice is removed while unrelated and non-leading warnings remain, and oversized output is front-bounded safely. |
+| `PYTHONPATH=src pytest tests/task_runtime -q` | Pass | 44 tests; completed Work stores fixed fallback speech plus cleaned bounded inline detail, long credential names remain redacted, and compact JSON envelopes remain within 8 KiB under UTF-8 and escape expansion. |
 | `PYTHONPATH=src pytest tests/managed_ingress/test_agent_bridge.py -q` | Pass | 11 tests; the exact active Work session receives the approved Think action values, and known HTTP rejection remains distinct from ambiguous SDK failure. |
 | `PYTHONPATH=src pytest tests/managed_ingress -q` | Pass | 61 tests; successful, unavailable, rejected, ambiguous, failed, cancelled, Workspace-mismatch, shutdown, and duplicate-notification paths use the approved delivery states. |
-| `bun run verify:backend` | Pass | 218 tests across architecture validation, ACP runtime, Task Runtime, and Managed ingress; four existing dependency warnings. |
+| `bun run verify:backend` | Pass | 221 tests across architecture validation, ACP runtime, Task Runtime, and Managed ingress; four existing dependency warnings. |
 | `bun run verify:local:fastapi` | Pass | FakeAgent local FastAPI proxy smoke completed without live Agora. |
 | `bun run verify:web:proxy` | Pass | Loopback-only local rewrite checks passed. |
 | `bun run verify:web:build` | Pass | Next.js 16.2.6 production build and TypeScript checks completed. |

@@ -299,7 +299,7 @@ async def test_definite_think_rejection_uses_one_fixed_fallback(store):
 
 
 @pytest.mark.anyio
-async def test_unavailable_fallback_releases_delivery_to_pending(store):
+async def test_unavailable_fallback_becomes_terminal_without_retry(store):
     receipt = completed_work(store)
     sessions = FakeSessions()
     sessions.think_result = "rejected"
@@ -312,10 +312,12 @@ async def test_unavailable_fallback_releases_delivery_to_pending(store):
     coordinator.notify(receipt.work_id)
     await wait_until(lambda: len(sessions.say_calls) == 1, "fallback attempt")
     await wait_until(
-        lambda: store.get(receipt.work_id).delivery_state == "pending_delivery",
-        "released fallback",
+        lambda: store.get(receipt.work_id).delivery_state == "delivery_unknown",
+        "terminal fallback",
     )
 
+    coordinator.notify(receipt.work_id)
+    await asyncio.sleep(0)
     assert len(sessions.think_calls) == 1
     assert sessions.say_calls == [("agent-a", "The work is done.")]
     await coordinator.close()

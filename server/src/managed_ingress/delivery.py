@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import suppress
-from typing import Protocol
+from typing import Literal, Protocol
 
 from managed_ingress.models import CompletionThinkOutcome
 from task_runtime.models import WorkReceipt
@@ -14,6 +14,7 @@ from task_runtime.store import WorkStore
 
 
 logger = logging.getLogger("uvicorn.error")
+DeliverySubmissionOutcome = Literal["accepted", "unavailable", "terminal"]
 
 
 class DeliverySessionPort(Protocol):
@@ -112,7 +113,7 @@ class WorkDeliveryCoordinator:
                 self._store.release_delivery(work_id)
                 return
             try:
-                submitted = await self._submit(claimed, agent_id)
+                submission = await self._submit(claimed, agent_id)
             except asyncio.CancelledError:
                 self._store.mark_delivery_unknown(work_id)
                 raise
@@ -123,8 +124,11 @@ class WorkDeliveryCoordinator:
                     type(exc).__name__,
                 )
                 return
-            if not submitted:
+            if submission == "unavailable":
                 self._store.release_delivery(work_id)
+                return
+            if submission == "terminal":
+                self._store.mark_delivery_unknown(work_id)
                 return
             self._store.mark_delivery_accepted(work_id)
         finally:
@@ -134,11 +138,13 @@ class WorkDeliveryCoordinator:
         identity = self._workspace.current_workspace_identity()
         return identity is not None and identity[0] == receipt.workspace_id
 
-    async def _submit(self, receipt: WorkReceipt, agent_id: str) -> bool:
+    async def _submit(
+        self, receipt: WorkReceipt, agent_id: str
+    ) -> DeliverySubmissionOutcome:
         if receipt.state == "completed" and receipt.final_presentation is not None:
             inline = receipt.final_presentation.inline
             if inline is None:
-                return False
+                return "unavailable"
             envelope = build_completion_envelope(receipt.objective, inline)
             outcome = await self._sessions.think_work_result(
                 agent_id,
@@ -146,18 +152,20 @@ class WorkDeliveryCoordinator:
                 receipt.work_id,
             )
             if outcome == "accepted":
-                return True
+                return "accepted"
             if outcome == "unavailable":
-                return False
+                return "unavailable"
             if outcome == "rejected":
-                return await self._sessions.say_work_result(
+                submitted = await self._sessions.say_work_result(
                     agent_id,
                     receipt.final_presentation.speech,
                 )
+                return "accepted" if submitted else "terminal"
             raise RuntimeError("Unsupported completion think outcome")
         if receipt.state == "failed" and receipt.error:
-            return await self._sessions.say_work_result(agent_id, receipt.error)
-        return False
+            submitted = await self._sessions.say_work_result(agent_id, receipt.error)
+            return "accepted" if submitted else "unavailable"
+        return "unavailable"
 
     @staticmethod
     def _is_deliverable(receipt: WorkReceipt) -> bool:

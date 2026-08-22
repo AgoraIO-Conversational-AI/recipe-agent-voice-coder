@@ -332,6 +332,22 @@ async def test_prompt_preserves_nonleading_and_unrecognized_warnings(
 
 
 @pytest.mark.anyio
+async def test_prompt_front_bounds_oversized_agent_text(tmp_path, project):
+    fake_agent = FakeAcpAgentProcess(
+        tmp_path / "acp-oversized-result.txt",
+        prompt_result="树" * 100000,
+    )
+    client = CodexAcpClient(command=fake_agent.command)
+    await client.open(str(project))
+
+    result = await client.prompt("Inspect the project", RecordingPromptObserver())
+
+    assert len(result.final_text.encode("utf-8")) <= 256 * 1024
+    assert result.final_text == "树" * len(result.final_text)
+    await client.close()
+
+
+@pytest.mark.anyio
 async def test_prompt_maps_only_observer_selected_permission_option(
     tmp_path, project
 ):

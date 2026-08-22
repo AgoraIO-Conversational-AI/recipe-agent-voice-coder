@@ -145,6 +145,11 @@ use one fixed APPEND fallback. Any ambiguous exception records
 `delivery_unknown`, is not retried, and cannot fall back. Failed Work keeps its
 safe APPEND error; cancelled Work stays `not_ready` for delivery.
 
+If the exact session disappears between a definite Think rejection and the
+fallback call, the existing state model records terminal `delivery_unknown`
+instead of releasing to pending; this prevents a second Think/fallback attempt.
+This interface remains experimental until the required live acceptance passes.
+
 ## Token Shape
 
 `get_config` returns:

@@ -27,6 +27,11 @@ and cancellation, and speaks the result when it is done.
 - Codex through a pinned ACP adapter
 - Claude Code is the next planned Agent Profile; it is not included yet.
 
+> **Experimental completion prototype:** Managed `/think` re-entry is
+> implemented, but its conversation quality, interruption recovery, transcript
+> visibility, and recursive-tool behavior have not yet completed the required
+> live Agora acceptance. It is not a stable recipe contract yet.
+
 ## Prerequisites
 
 - [Python 3.10+](https://www.python.org/)

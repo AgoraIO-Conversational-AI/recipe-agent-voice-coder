@@ -106,7 +106,9 @@ natural-language objectives through `start_work` without exposing the path or
 enumerating task categories; the MCP tool description carries the same
 contract.
 
-After Task Runtime commits targeted Work, an in-process delivery coordinator
+The current experimental completion prototype has not yet completed its
+required live Agora acceptance. After Task Runtime commits targeted Work, an
+in-process delivery coordinator
 revalidates the exact originating Agent and Workspace and claims the durable
 pending result. Completed Work stores a cleaned full inline result plus the
 fixed fallback `The work is done.`; the coordinator creates an at-most-8-KiB

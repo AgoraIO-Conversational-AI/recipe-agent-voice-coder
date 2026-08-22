@@ -14,7 +14,11 @@ from task_runtime.store import WorkStore
 
 
 logger = logging.getLogger("uvicorn.error")
-DeliverySubmissionOutcome = Literal["accepted", "unavailable", "terminal"]
+DeliverySubmissionOutcome = Literal[
+    "accepted",
+    "unavailable",
+    "delivery_unknown",
+]
 
 
 class DeliverySessionPort(Protocol):
@@ -127,7 +131,7 @@ class WorkDeliveryCoordinator:
             if submission == "unavailable":
                 self._store.release_delivery(work_id)
                 return
-            if submission == "terminal":
+            if submission == "delivery_unknown":
                 self._store.mark_delivery_unknown(work_id)
                 return
             self._store.mark_delivery_accepted(work_id)
@@ -160,7 +164,7 @@ class WorkDeliveryCoordinator:
                     agent_id,
                     receipt.final_presentation.speech,
                 )
-                return "accepted" if submitted else "terminal"
+                return "accepted" if submitted else "delivery_unknown"
             raise RuntimeError("Unsupported completion think outcome")
         if receipt.state == "failed" and receipt.error:
             submitted = await self._sessions.say_work_result(agent_id, receipt.error)

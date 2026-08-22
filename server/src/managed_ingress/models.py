@@ -1,6 +1,10 @@
 """Public types for one Managed Voice LLM MCP credential."""
 
 from dataclasses import dataclass, field
+from typing import Literal
+
+
+CompletionThinkOutcome = Literal["accepted", "unavailable", "rejected"]
 
 
 @dataclass(frozen=True)

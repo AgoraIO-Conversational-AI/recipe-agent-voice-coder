@@ -10,12 +10,13 @@ import time
 from typing import Any, Dict, Optional, Protocol
 
 from agora_agent import Area, AsyncAgora
+from agora_agent.core.api_error import ApiError
 from agora_agent.agentkit import Agent as AgoraAgent
 from agora_agent.agentkit.vendors import DeepgramSTT, MiniMaxTTS, OpenAI
 from architecture_validation.config import ValidationConfig
 from architecture_validation.models import RuntimeSessionBinding
 from architecture_validation.runtime import capability_registry
-from managed_ingress.models import VoiceMcpLease
+from managed_ingress.models import CompletionThinkOutcome, VoiceMcpLease
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -363,6 +364,34 @@ class Agent:
             return False
         await session.say(text, priority="APPEND", interruptable=True)
         return True
+
+    async def think_work_result(
+        self,
+        agent_id: str,
+        completion_envelope: str,
+        work_id: str,
+    ) -> CompletionThinkOutcome:
+        """Inject one completed Work into its exact active Managed session."""
+        session = self._sessions.get(agent_id)
+        if session is None or agent_id not in self._work_leases:
+            return "unavailable"
+        try:
+            await session.think(
+                completion_envelope,
+                on_listening_action="inject",
+                on_thinking_action="interrupt",
+                on_speaking_action="interrupt",
+                interruptable=True,
+                metadata={
+                    "event": "local_work_completed",
+                    "work_id": work_id,
+                },
+            )
+        except ApiError as exc:
+            if exc.status_code is not None:
+                return "rejected"
+            raise
+        return "accepted"
 
     async def close(self) -> None:
         """Revoke and stop every locally owned session without unknown-ID fallback."""

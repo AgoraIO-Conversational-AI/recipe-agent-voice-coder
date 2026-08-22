@@ -104,12 +104,15 @@ def test_work_mode_builds_managed_llm_with_exact_mcp_contract(
                 "conversation. Do not call tools for this event. Do not read "
                 "Markdown, code, paths, logs, warnings, protocol fields, or "
                 "identifiers aloud. Mention that more detail is available only "
-                "when useful.\n"
+                "when useful. Use plain spoken sentences only and do not output "
+                "Markdown formatting.\n"
             ),
         }
     ]
     prompt = llm["system_messages"][0]["content"]
     assert prompt.count("LOCAL_WORK_COMPLETED") == 1
+    assert "plain spoken sentences only" in prompt
+    assert "do not output Markdown formatting" in prompt
     for forbidden in (
         "for example",
         "such as",

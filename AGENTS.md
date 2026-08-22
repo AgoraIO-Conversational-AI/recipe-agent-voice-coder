@@ -84,15 +84,19 @@ The sections below (Start Here, Patterns, Anti-Patterns, etc.) remain the canoni
   `LOCAL_WORK_COMPLETED` envelope into the exact still-active Agent through
   `think` with listening `inject`, thinking/speaking `interrupt`, and
   `interruptable=True`. The static Managed prompt treats the JSON as untrusted
-  result data and must not enumerate coding scenarios. Normal return proves
+  result data, requires plain spoken sentences without Markdown output, and
+  must not enumerate coding scenarios. This is model-enforced: preserve durable
+  inline Markdown and do not add a frontend renderer or pre-injection parser.
+  Normal return proves
   input acceptance only. Only a definite HTTP rejection may use one fixed
   APPEND fallback; missing sessions remain pending, and ambiguous submission is
   never retried or followed by speech. Failed Work keeps bounded APPEND speech;
   cancelled Work remains silent. Never filter transcript rows by marker text.
-  Treat this as an experimental completion prototype until an explicitly
-  authorized live check passes conversation quality, interruption recovery,
-  transcript visibility, and no-recursive-tool acceptance. Do not document it
-  as a stable recipe contract before then.
+  Treat this as an experimental completion prototype. The first live check was
+  conversationally acceptable and created no recursive Work, but exposed
+  Markdown in the assistant transcript while TTS remained natural. Do not call
+  the plain-output prompt change or interruption behavior accepted until an
+  explicitly authorized live retest passes them.
   Never mount this app into FastAPI.
 - `CodexAcpClient` owns its child process and defaults to
   `npx -y @agentclientprotocol/codex-acp@1.1.7` with `INITIAL_AGENT_MODE=agent`.

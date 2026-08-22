@@ -28,9 +28,11 @@ and cancellation, and speaks the result when it is done.
 - Claude Code is the next planned Agent Profile; it is not included yet.
 
 > **Experimental completion prototype:** Managed `/think` re-entry is
-> implemented, but its conversation quality, interruption recovery, transcript
-> visibility, and recursive-tool behavior have not yet completed the required
-> live Agora acceptance. It is not a stable recipe contract yet.
+> implemented. Its first live check was conversationally acceptable and created
+> no recursive Work, but the assistant transcript contained Markdown even
+> though TTS did not read it aloud. The prompt now requires plain spoken text;
+> that transcript fix and interruption recovery still need live acceptance, so
+> this is not a stable recipe contract yet.
 
 ## Prerequisites
 
@@ -96,7 +98,8 @@ Voice -> Agora Managed STT / LLM / TTS
 5. Completed Work keeps its full cleaned result in durable status and injects
    one bounded `LOCAL_WORK_COMPLETED` envelope into the originating active
    Agent through Agora `/think`. The Managed LLM turns it into a short answer
-   grounded in the live conversation. Failed Work keeps a bounded direct-speech
+   grounded in the live conversation and is instructed to output plain spoken
+   sentences without Markdown formatting. Failed Work keeps a bounded direct-speech
    error; cancelled Work remains silent.
 6. A normal `/think` return records input acceptance only, not generated text,
    playback, or proof that the user heard it. A definite HTTP rejection may use

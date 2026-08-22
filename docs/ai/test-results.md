@@ -174,13 +174,25 @@ conversation minutes.
 | `bun run verify:web:build` | Pass | Next.js 16.2.6 production build and TypeScript checks completed. |
 | `bun run verify:public-repo` | Pass | Local-only `docs/superpowers` material remains untracked and the public boundary check passed. |
 
-| Live acceptance question | Status | Required observation |
-| --- | --- | --- |
-| Conversational completion quality | Not run — separately authorized Agora session required | The response should sound like a natural continuation and provide one or two useful conclusions. |
-| Speaking interruption and recovery | Not run — separately authorized Agora session required | A completion arriving during speech should interrupt and recover coherently. |
-| Synthetic input transcript visibility | Not run — separately authorized Agora session required | The `LOCAL_WORK_COMPLETED` JSON must not become an unexplained visible user message. |
-| Recursive MCP behavior | Not run — separately authorized Agora session required | Completion re-entry must not create another `start_work` call. |
+### First Live Managed Completion Check
 
-Offline checks do not establish any of these four live qualities. A normal
-`/think` return means only that Agora accepted the injected input; it is not
-generated-text, TTS-start, playback-complete, or user-heard evidence.
+The user explicitly started and ended one real conversation. Backend evidence
+showed one new Work, `5bf042d45ec243daa9dd5c62891d28fc`, completed with
+delivery `accepted`; Agora `/think` and Agent leave both returned HTTP 200. The
+cleaned inline result contained no captured skills-context notice, and no second
+Work was created. The user reported that the overall conversation was okay and
+that TTS did not read Markdown aloud, but the final assistant transcript did
+contain some Markdown.
+
+| Live acceptance question | Status | Evidence / remaining observation |
+| --- | --- | --- |
+| Conversational completion quality | Pass by user report | The user described the overall result as okay. |
+| Speaking interruption and recovery | Not established | The check did not establish that completion arrived during Agent speech. |
+| Synthetic input transcript visibility | Partial | No raw envelope was reported, but the transcript was not independently captured; it did contain model-emitted Markdown. |
+| Recursive MCP behavior | Pass | The SQLite receipt set contained exactly one new Work after the completion turn. |
+| Plain assistant transcript | Failed, fix pending live retest | TTS remained natural, but the transcript contained Markdown. The static prompt now requires plain spoken sentences with no Markdown output; only offline prompt-contract tests cover that change so far. |
+
+The live check establishes the observations above only. A normal `/think`
+return still means only that Agora accepted the injected input; it is not
+generated-text, TTS-start, playback-complete, or user-heard evidence. A second
+live conversation is not started automatically.

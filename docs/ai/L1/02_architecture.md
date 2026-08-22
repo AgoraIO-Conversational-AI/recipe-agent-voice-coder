@@ -135,16 +135,20 @@ Agent, kept only in memory, and revoked before Agent/tunnel shutdown. A tunnel
 URL change requires an Agent restart because the endpoint is part of the Agent
 configuration.
 
-The `/think` completion flow is implemented as an experimental prototype and
-is not a stable contract until its separately authorized live acceptance
-passes. `WorkDeliveryCoordinator` receives only terminal Work IDs after Task Runtime
+The `/think` completion flow is implemented as an experimental prototype. Its
+first live check was conversationally acceptable and created no recursive Work,
+but assistant transcript Markdown prompted a plain-spoken, no-Markdown output
+rule that remains pending live retest. `WorkDeliveryCoordinator` receives only
+terminal Work IDs after Task Runtime
 commits completed or failed state. Each receipt privately retains its
 originating Agent ID. Completed Work stores a cleaned full inline result and a
 fixed direct-speech fallback. The coordinator revalidates the exact
 Work-capable session and Workspace, atomically claims `pending_delivery`, builds
 an at-most-8-KiB `LOCAL_WORK_COMPLETED` JSON envelope, and calls
 `AgentSession.think` with listening `inject`, thinking/speaking `interrupt`, and
-`interruptable=True`. Normal return means only injected-input `accepted`.
+`interruptable=True`. The static Managed prompt requires plain spoken sentences
+without Markdown output, but does not alter durable inline Markdown or envelope
+data. Normal return means only injected-input `accepted`.
 A definite HTTP rejection may use one APPEND fallback; an ambiguous exception
 is `delivery_unknown`, is never retried, and cannot fall back. Failed Work uses
 its bounded safe APPEND error, cancelled Work is silent, and no session or a

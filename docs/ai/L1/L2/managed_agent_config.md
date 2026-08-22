@@ -84,7 +84,9 @@ Re-verify field names after upgrades within that range.
 Edit `ADA_PROMPT` for the stable quickstart or `VOICE_WORK_PROMPT` for the local
 Work-capable Managed Agent. Keep prompts concise — long prompts amplify LLM
 latency. `VOICE_WORK_PROMPT` contains one generic `LOCAL_WORK_COMPLETED` trust
-and spoken-output rule; do not add anticipated coding categories or examples.
+and spoken-output rule. It requires plain spoken sentences with no Markdown
+output; do not add anticipated coding categories or examples. Preserve durable
+inline Markdown instead of adding a parser or frontend renderer.
 
 ### Change completed Work re-entry
 
@@ -105,8 +107,11 @@ Agora Think has no APPEND action and returns no generated text or playback
 receipt. `accepted` therefore means input acceptance only. Do not change these
 actions independently of the delivery state machine, add a dynamic
 `update -> think -> restore` sequence, or fall back after an ambiguous call.
-The path remains experimental until its required live acceptance passes; do not
-describe this configuration as stable based on offline tests alone.
+The first live check was conversationally acceptable and did not create
+recursive Work, but its assistant transcript contained Markdown while TTS did
+not read it. The new plain-output sentence remains pending live retest, as does
+interruption recovery; do not describe this configuration as stable based on
+offline tests alone.
 
 ### Change the greeting
 

@@ -112,6 +112,10 @@ There is **no ESLint config file** in `web/` — Biome is the only TS/JS linter.
 - Completed delivery uses the exact Agent session's `think` method. Only a typed
   known HTTP rejection may reach direct speech; successful or ambiguous calls
   must not be followed by fallback or retry.
+- Keep completion transcript formatting model-enforced in the static Managed
+  prompt: plain spoken sentences with no Markdown output. Preserve durable
+  inline Markdown and do not add a frontend renderer, transcript text filter,
+  or pre-injection Markdown parser for this requirement.
 
 ## File Naming
 

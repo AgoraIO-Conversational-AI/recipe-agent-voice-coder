@@ -93,24 +93,27 @@ Next deployments do not register `/api/local/*` rewrites.
 The opted-in local FastAPI lifespan starts the Task Runtime, marks interrupted
 nonterminal Work failed, and stops it before ACP and SQLite shutdown. After ACP
 is ready, **Start conversation** prepares the isolated four-tool MCP listener,
-starts ngrok, and binds one capability to the Agora Agent. Completed and failed
-The following completion path is an experimental prototype pending required
+starts ngrok, and binds one capability to the Agora Agent. The following
+completion path is an experimental prototype pending required
 live acceptance, not a stable recipe contract. Work completion is submitted
 once to the exact originating active Agent through
 a bounded `LOCAL_WORK_COMPLETED` Managed `/think` turn. Listening uses `inject`;
 thinking and speaking use `interrupt`; the produced speech remains
-interruptible. API acceptance is persisted but is not generated-text or
-playback proof. A definite HTTP rejection may use one fixed APPEND fallback;
+interruptible. The static prompt requests plain spoken sentences without
+Markdown output while leaving durable inline Markdown unchanged. API acceptance
+is persisted but is not generated-text or playback proof. A definite HTTP
+rejection may use one fixed APPEND fallback;
 an ambiguous result is never retried or followed by speech. Failed Work keeps
 bounded APPEND speech and cancelled Work remains silent. If the session is gone
 or the Workspace changed, `get_work_status` remains authoritative. Activity
 Panel, playback receipts, automatic replay, and proactive permission speech are
 not part of this milestone.
 
-Offline verification uses fake sessions and consumes no Agora minutes. A live
-completion-quality check must be separately authorized and should use one
-session to observe conversational quality, interruption recovery, transcript
-visibility of synthetic input, and recursive tool behavior.
+Offline verification uses fake sessions and consumes no Agora minutes. The
+first live check found acceptable conversational output and no recursive Work,
+but exposed Markdown in the assistant transcript while TTS stayed natural. The
+new plain-output rule and interruption recovery require a separately authorized
+live retest.
 
 The launcher preflight validates macOS Apple Silicon, Bun/Node/Python/ngrok, and
 usable Agora configuration without printing secrets. Advanced examples:

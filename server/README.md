@@ -59,7 +59,9 @@ input acceptance. A definite HTTP rejection may use one fixed APPEND fallback;
 an ambiguous outcome is never retried or followed by direct speech. Failed Work
 continues to use bounded APPEND speech and cancellation remains silent.
 This completion path remains experimental pending separately authorized live
-quality, interruption, transcript-visibility, and recursive-tool acceptance.
+acceptance. Its first live check was conversationally acceptable and created no
+recursive Work, but assistant transcript Markdown prompted a plain-spoken,
+no-Markdown output rule that remains pending live retest.
 
 This assumes the Agora CLI is installed and logged in. The command uses the project selected in your Agora CLI context, which is usually your default account project.
 

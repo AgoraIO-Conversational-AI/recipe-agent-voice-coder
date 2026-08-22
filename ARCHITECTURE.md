@@ -106,16 +106,20 @@ natural-language objectives through `start_work` without exposing the path or
 enumerating task categories; the MCP tool description carries the same
 contract.
 
-The current experimental completion prototype has not yet completed its
-required live Agora acceptance. After Task Runtime commits targeted Work, an
-in-process delivery coordinator
+The current experimental completion prototype has completed one partial live
+Agora check: delivery and conversational output worked, but the assistant
+transcript contained Markdown while TTS did not read it. The static completion
+rule now requires plain spoken sentences with no Markdown output; that change
+and interruption recovery remain pending live acceptance. After Task Runtime
+commits targeted Work, an in-process delivery coordinator
 revalidates the exact originating Agent and Workspace and claims the durable
 pending result. Completed Work stores a cleaned full inline result plus the
 fixed fallback `The work is done.`; the coordinator creates an at-most-8-KiB
 `LOCAL_WORK_COMPLETED` JSON envelope and calls that Agent session's Think API
 with listening `inject`, thinking/speaking `interrupt`, and user-interruptible
 output. The current Managed LLM converts the data into a short response using
-the live conversation. A normal return records input `accepted`, not generated
+the live conversation and is instructed to emit plain spoken text without
+Markdown formatting. A normal return records input `accepted`, not generated
 text or playback. Only a definite HTTP rejection may use one APPEND Speak
 fallback. Ambiguous submission records `delivery_unknown` and is not retried.
 Failed Work continues through bounded APPEND speech, cancelled Work stays

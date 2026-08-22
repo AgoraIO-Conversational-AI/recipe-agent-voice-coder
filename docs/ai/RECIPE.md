@@ -123,6 +123,17 @@ advertised ChatGPT method on typed authentication-required and retrying once.
 Advanced `CODEX_PATH`/API-key child pass-through and JSON-argv custom commands
 do not select full access or log their environment.
 
+The extension exposes exactly four authenticated MCP Work tools to Agora's
+Managed Voice LLM. Completed ACP output is cleaned and redacted, stored as full
+bounded inline detail, then projected into an at-most-8-KiB
+`LOCAL_WORK_COMPLETED` JSON envelope for the exact originating Agent's
+`AgentSession.think` call. Listening uses `inject`; thinking and speaking use
+intentional `interrupt`. A normal return means input acceptance only. Only a
+received HTTP non-2xx rejection may use one fixed APPEND fallback; ambiguous
+outcomes are never retried. Failed Work keeps bounded direct speech and
+cancelled Work is silent. This does not add Custom LLM, Activity UI, new MCP
+tools, frontend Work authority, or cross-session replay.
+
 Both ends gate these routes behind the same `VOICE_ACP_LOCAL_RUNTIME=1` opt-in.
 The FastAPI backend mounts `/local/*` and `/validation/admin/*` only through
 `server.create_app(enable_local_routes=True)`; the default app for ordinary and
@@ -142,7 +153,9 @@ live/manual checks.
 - Exact managed-provider model names, VAD timing, voice IDs, and prompt text, as long as they remain documented extension points.
 - In-memory `Agent._sessions` implementation details; the stable behavior is start by channel/user and stop by returned `agent_id`.
 - Verification implementation internals under `web/scripts/`; the stable surface is the root script names and what they assert.
-- `agora-agents` SDK minor-version behavior; this recipe lower-bounds v2 but does not freeze every SDK field.
+- `agora-agents` SDK minor-version behavior; this recipe requires
+  `agora-agents>=2.6.0,<3` for `AgentSession.think` but does not freeze every
+  SDK field within that range.
 
 ## Related Progressive Disclosure Docs
 

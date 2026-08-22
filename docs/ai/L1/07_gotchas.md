@@ -40,11 +40,16 @@ conversation start, or ngrok. Treat each as an authorized manual/live check.
 `LocalRuntimeStatus.state == "ready"` proves only that one ACP session is open.
 The MCP listener, ngrok tunnel, and capability are prepared when the user
 starts the Agora conversation. If the tunnel URL changes, the Agent must be
-restarted because its MCP endpoint cannot be updated in place. Completed and
-failed targeted Work is submitted to the exact original active Agent with
-APPEND priority. `accepted` proves API acceptance only. Missing sessions stay
-`pending_delivery`; ambiguous submission becomes `delivery_unknown` and is not
-replayed. `get_work_status` remains the authoritative fallback.
+restarted because its MCP endpoint cannot be updated in place. Completed
+targeted Work is injected into the exact original active Agent with
+`AgentSession.think`. `/think` has no APPEND action: listening supports
+`inject`, while thinking/speaking use intentional `interrupt`. Its normal
+response contains no generated answer or playback receipt, so `accepted` proves
+only input acceptance. The synthetic input may also appear as a user-role item
+in history or transcript; do not hide it by matching the marker text alone.
+Missing sessions stay `pending_delivery`; ambiguous submission becomes
+`delivery_unknown`, cannot fall back, and is not replayed. Failed Work keeps
+bounded APPEND speech. `get_work_status` remains the authoritative fallback.
 
 ## Local Runtime Overrides Are Explicit and Narrow
 

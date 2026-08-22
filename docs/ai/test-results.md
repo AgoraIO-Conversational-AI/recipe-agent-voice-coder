@@ -50,7 +50,7 @@ The tree passed structural checks and a clean read-only content test. Source-ver
 ## Recommended Fixes
 
 - [x] Update `L0_repo_card.md` `Last Reviewed` to 2026-05-28.
-- [x] Fix setup sequence and `agora-agents>=2.0.0` dependency wording in `L1/01_setup.md`.
+- [x] Fix setup sequence and stale Agora SDK dependency wording in `L1/01_setup.md`.
 - [x] Align `L1/02_architecture.md` rewrite snippet with `web/next.config.ts`.
 - [x] Clarify hook-owned cleanup, FastAPI error detail shape, git conventions, and `py_compile` limits in `L1/04_conventions.md`.
 - [x] Replace CI wording with local pre-ship checks in `L1/06_interfaces.md`.
@@ -155,3 +155,27 @@ conversation was then started and stopped explicitly.
 | Result quality | Needs follow-up | The spoken result included an internal Codex skills-context warning and a long directory tree. The end-to-end transport works, but completion projection should suppress runtime warnings and better bound voice output. |
 | Cost containment | Pass with caveat | The failed in-app-browser Agent was left immediately after the RTC join error. One additional Chrome conversation completed the authorized test and was stopped as soon as delivery was verified. |
 | Cleanup | Pass | Both Agent leave requests returned 200. After launcher shutdown, ports 3000, 8000, and 4040 were closed and no supervisor, Next, ngrok, or `codex-acp` process remained. |
+
+## 2026-08-22 Managed Completion Re-entry Offline Verification
+
+This implementation check used only fake ACP and Agora session boundaries. It
+did not start ngrok, create an Agora Agent, open a microphone, or consume Agora
+conversation minutes.
+
+| Command | Result | Evidence |
+| --- | --- | --- |
+| `PYTHONPATH=src pytest tests/acp_runtime/test_acp_client.py -q` | Pass | 21 tests; the exact leading Codex skills-context notice is removed while unrelated and non-leading warnings remain. |
+| `PYTHONPATH=src pytest tests/task_runtime -q` | Pass | 42 tests; completed Work stores fixed fallback speech plus cleaned inline detail, and compact JSON envelopes remain within 8 KiB under UTF-8 and escape expansion. |
+| `PYTHONPATH=src pytest tests/managed_ingress/test_agent_bridge.py -q` | Pass | 11 tests; the exact active Work session receives the approved Think action values, and known HTTP rejection remains distinct from ambiguous SDK failure. |
+| `PYTHONPATH=src pytest tests/managed_ingress -q` | Pass | 61 tests; successful, unavailable, rejected, ambiguous, failed, cancelled, Workspace-mismatch, shutdown, and duplicate-notification paths use the approved delivery states. |
+
+| Live acceptance question | Status | Required observation |
+| --- | --- | --- |
+| Conversational completion quality | Not run — separately authorized Agora session required | The response should sound like a natural continuation and provide one or two useful conclusions. |
+| Speaking interruption and recovery | Not run — separately authorized Agora session required | A completion arriving during speech should interrupt and recover coherently. |
+| Synthetic input transcript visibility | Not run — separately authorized Agora session required | The `LOCAL_WORK_COMPLETED` JSON must not become an unexplained visible user message. |
+| Recursive MCP behavior | Not run — separately authorized Agora session required | Completion re-entry must not create another `start_work` call. |
+
+Offline checks do not establish any of these four live qualities. A normal
+`/think` return means only that Agora accepted the injected input; it is not
+generated-text, TTS-start, playback-complete, or user-heard evidence.

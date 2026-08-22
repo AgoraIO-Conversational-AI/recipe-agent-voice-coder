@@ -106,14 +106,20 @@ natural-language objectives through `start_work` without exposing the path or
 enumerating task categories; the MCP tool description carries the same
 contract.
 
-After Task Runtime commits completed or failed targeted Work, an in-process
-delivery coordinator revalidates the exact originating Agent and Workspace,
-claims the durable pending result, and calls that Agent session's Speak API
-with APPEND priority. Normal API return records `accepted`; a submission error
-records `delivery_unknown` and is not retried. Missing/stopped sessions and
-Workspace mismatch stay `pending_delivery`, with `get_work_status` as the
-fallback. SSE/UI, proactive permission announcements, playback receipts,
-batching, and reconnect replay remain separate follow-ons.
+After Task Runtime commits targeted Work, an in-process delivery coordinator
+revalidates the exact originating Agent and Workspace and claims the durable
+pending result. Completed Work stores a cleaned full inline result plus the
+fixed fallback `The work is done.`; the coordinator creates an at-most-8-KiB
+`LOCAL_WORK_COMPLETED` JSON envelope and calls that Agent session's Think API
+with listening `inject`, thinking/speaking `interrupt`, and user-interruptible
+output. The current Managed LLM converts the data into a short response using
+the live conversation. A normal return records input `accepted`, not generated
+text or playback. Only a definite HTTP rejection may use one APPEND Speak
+fallback. Ambiguous submission records `delivery_unknown` and is not retried.
+Failed Work continues through bounded APPEND speech, cancelled Work stays
+silent, and missing/stopped sessions or Workspace mismatch stay
+`pending_delivery`. SSE/UI, playback receipts, batching, and reconnect replay
+remain separate follow-ons.
 
 ## Shared Conversation Flow
 

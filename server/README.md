@@ -50,6 +50,15 @@ Agora may initialize MCP before Agent creation returns. The pending bearer
 allows only protocol discovery; the four Work tools remain closed until the
 backend binds the real Agent ID.
 
+Completed Work keeps its full cleaned result in the durable receipt and sends
+only a bounded `LOCAL_WORK_COMPLETED` JSON envelope to the exact active session
+through `AsyncAgentSession.think`. The call uses listening `inject`,
+thinking/speaking `interrupt`, and interruptible output so the Managed LLM can
+form a short answer from the current conversation. A normal return proves only
+input acceptance. A definite HTTP rejection may use one fixed APPEND fallback;
+an ambiguous outcome is never retried or followed by direct speech. Failed Work
+continues to use bounded APPEND speech and cancellation remains silent.
+
 This assumes the Agora CLI is installed and logged in. The command uses the project selected in your Agora CLI context, which is usually your default account project.
 
 If you are not using the Agora CLI, create the env file manually and fill in your project values:
@@ -222,6 +231,8 @@ Offline tests inject fake ACP clients/processes, so they do not validate a real
 ## SDK
 
 This project uses `agora-agents` (import `agora_agent`):
+- Supported range: `agora-agents>=2.6.0,<3`; 2.6 is required for
+  `AsyncAgentSession.think` completion re-entry.
 - Package: `agora_agent`
 - Agent builder: `agora_agent.agentkit.Agent` with fluent `.with_llm()` / `.with_tts()` / `.with_stt()` API
 - Default vendors: `DeepgramSTT`, `OpenAI`, `MiniMaxTTS` from `agora_agent.agentkit.vendors`

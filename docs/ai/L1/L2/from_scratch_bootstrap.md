@@ -26,7 +26,9 @@ Why: provider schemas, SDK builder fields, token behavior, and RTM event details
 Implement these pieces in order:
 
 1. Create a bun workspace with `web` as a workspace member and root scripts that orchestrate backend, frontend, setup, doctor, verify, and clean tasks.
-2. Create `server/` with FastAPI, uvicorn, python-dotenv, and `agora-agents>=2.0.0` in `server/requirements.txt`.
+2. Create `server/` with FastAPI, uvicorn, python-dotenv, and
+   `agora-agents>=2.6.0,<3` in `server/requirements.txt`; the 2.6 floor is
+   required for Managed completion re-entry through `AgentSession.think`.
 3. Add `server/.env.example` with `AGORA_APP_ID`, `AGORA_APP_CERTIFICATE`, optional `AGENT_GREETING`, optional `HOST`, and optional `PORT`.
 4. Implement `server/src/agent.py` with an `Agent` class that reads env once, constructs `AsyncAgora`, builds `AgoraAgent` with managed `DeepgramSTT`, `OpenAI`, `MiniMaxTTS`, starts async sessions, stores sessions by `agent_id`, and stops by active session or `client.stop_agent`.
 5. Implement `server/src/server.py` with `GET /get_config`, `POST /startAgent`, and `POST /stopAgent`; load env file-relative from `server/.env.local` then `server/.env`.

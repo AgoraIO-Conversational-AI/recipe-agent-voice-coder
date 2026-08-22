@@ -92,12 +92,14 @@ fastapi>=0.100.0
 uvicorn>=0.20.0
 requests>=2.31.0
 python-dotenv>=1.0.0
-agora-agents>=2.0.0
+agora-agents>=2.6.0,<3
 mcp>=1.2.0,<2
 httpx>=0.27,<1
 ```
 
-The SDK is lower-bounded at v2 — add an upper bound or exact pin if you need reproducible SDK behavior.
+The 2.6 floor is required for `AsyncAgentSession.think`, which the local
+completion path uses to re-enter the current Managed conversation. The v3 upper
+bound prevents an unreviewed major-version contract change.
 
 ## Quick Commands
 

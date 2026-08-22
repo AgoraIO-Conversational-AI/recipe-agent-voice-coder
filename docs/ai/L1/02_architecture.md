@@ -137,11 +137,16 @@ configuration.
 
 `WorkDeliveryCoordinator` receives only terminal Work IDs after Task Runtime
 commits completed or failed state. Each receipt privately retains its
-originating Agent ID. The coordinator revalidates that exact Work-capable
-session and Workspace, atomically claims `pending_delivery`, and submits the
-stored safe speech through Agent Speak with APPEND priority. Normal return is
-`accepted`; an ambiguous exception is `delivery_unknown` and is not retried.
-No session or a changed Workspace leaves the result pending for status lookup.
+originating Agent ID. Completed Work stores a cleaned full inline result and a
+fixed direct-speech fallback. The coordinator revalidates the exact
+Work-capable session and Workspace, atomically claims `pending_delivery`, builds
+an at-most-8-KiB `LOCAL_WORK_COMPLETED` JSON envelope, and calls
+`AgentSession.think` with listening `inject`, thinking/speaking `interrupt`, and
+`interruptable=True`. Normal return means only injected-input `accepted`.
+A definite HTTP rejection may use one APPEND fallback; an ambiguous exception
+is `delivery_unknown`, is never retried, and cannot fall back. Failed Work uses
+its bounded safe APPEND error, cancelled Work is silent, and no session or a
+changed Workspace leaves the result pending for status lookup.
 
 Agora can send MCP `initialize` and tool discovery before Agent creation
 returns. The prepared bearer therefore has a pending phase that admits only

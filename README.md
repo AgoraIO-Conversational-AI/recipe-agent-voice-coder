@@ -18,7 +18,8 @@ and cancellation, and speaks the result when it is done.
 - Uses Agora Managed STT, LLM, and TTS for the voice conversation.
 - Delegates durable background Work through authenticated MCP tools.
 - Relays coding-agent permission decisions through the voice conversation.
-- Supports status checks, cancellation, and spoken completion results.
+- Supports status checks, cancellation, and context-aware spoken completion
+  results through the current Managed Voice LLM conversation.
 
 ## Current Support
 
@@ -87,9 +88,15 @@ Voice -> Agora Managed STT / LLM / TTS
    the objective through ACP.
 4. Codex activity and permission requests are converted into bounded,
    voice-safe state. Permission decisions remain explicit.
-5. Completed or failed Work is submitted once to the originating active voice
-   Agent. Durable status remains authoritative if speech is unavailable or its
-   delivery outcome is uncertain.
+5. Completed Work keeps its full cleaned result in durable status and injects
+   one bounded `LOCAL_WORK_COMPLETED` envelope into the originating active
+   Agent through Agora `/think`. The Managed LLM turns it into a short answer
+   grounded in the live conversation. Failed Work keeps a bounded direct-speech
+   error; cancelled Work remains silent.
+6. A normal `/think` return records input acceptance only, not generated text,
+   playback, or proof that the user heard it. A definite HTTP rejection may use
+   one fixed `The work is done.` direct-speech fallback; ambiguous outcomes are
+   never retried. Durable status remains authoritative.
 
 ## Safety and Privacy
 
@@ -105,6 +112,9 @@ Voice -> Agora Managed STT / LLM / TTS
   browser or included in public MCP results.
 - Local Work state is stored in SQLite. Public status output is bounded and
   durable text is redacted before storage.
+- Completed ACP output is cleaned before storage and enters the Managed LLM as
+  bounded untrusted JSON data. The voice prompt forbids treating that result as
+  instructions or reading code, paths, logs, warnings, or protocol fields aloud.
 - Agent-native authentication and provider billing remain between you and the
   selected coding agent.
 
@@ -219,7 +229,7 @@ lifecycle.
 | Codex requests authentication | Complete the advertised ChatGPT flow, or configure a supported child-process API key. |
 | Port 3000 is already in use | Stop the exact process using that port, then run `bun run dev:codex` again. |
 | A previous terminal closed unexpectedly | Restart the launcher; interrupted nonterminal Work is marked failed rather than silently resumed. |
-| You need the latest result again | Ask for Work status; spoken delivery is intentionally not replayed into a newer Agent session. |
+| You need the latest result again | Ask for Work status; the full cleaned inline result remains durable, while spoken delivery is intentionally not replayed into a newer Agent session. |
 
 ## Upstream
 

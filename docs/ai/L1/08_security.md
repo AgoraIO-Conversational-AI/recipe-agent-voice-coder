@@ -129,9 +129,12 @@ If you need real auth, add a FastAPI dependency that validates a header on each 
 - A targeted Work receipt privately persists its originating Agora Agent ID so
   completion cannot be redirected to a newer session. The new receipt field is
   never exposed through MCP or Work browser projections, activity, or delivery
-  logs; the existing `/startAgent` lifecycle contract remains unchanged. Only
-  the bounded, redacted stored speech/error is submitted to the exact active
-  Agent session.
+  logs; the existing `/startAgent` lifecycle contract remains unchanged.
+  Completed Work stores a bounded, redacted inline result and fixed fallback;
+  its at-most-8-KiB JSON envelope is submitted only to the exact active Agent
+  session. The static Managed prompt treats envelope fields as untrusted data,
+  not instructions, and forbids reading code, paths, logs, warnings, protocol
+  fields, or identifiers aloud. Never log the envelope or SDK error body.
 - No lifecycle HTTP Work/permission route is exposed. The dedicated public MCP
   app exposes only four tools, authenticates before reading request bodies,
   enforces Host/Origin/method/content-type policy and a 64 KiB pre-read cap,

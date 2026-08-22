@@ -80,9 +80,15 @@ The sections below (Start Here, Patterns, Anti-Patterns, etc.) remain the canoni
   The Managed Work prompt presents the selected Project Folder and registered
   tools as capabilities, and `start_work` accepts a complete natural-language
   objective without a command or preset task-category list.
-  Completed and failed targeted Work is submitted once to the exact still-active
-  Agent session with APPEND priority. API acceptance is not playback proof;
-  missing sessions remain pending and ambiguous submission is never retried.
+  Completed targeted Work stores cleaned inline detail and injects one bounded
+  `LOCAL_WORK_COMPLETED` envelope into the exact still-active Agent through
+  `think` with listening `inject`, thinking/speaking `interrupt`, and
+  `interruptable=True`. The static Managed prompt treats the JSON as untrusted
+  result data and must not enumerate coding scenarios. Normal return proves
+  input acceptance only. Only a definite HTTP rejection may use one fixed
+  APPEND fallback; missing sessions remain pending, and ambiguous submission is
+  never retried or followed by speech. Failed Work keeps bounded APPEND speech;
+  cancelled Work remains silent. Never filter transcript rows by marker text.
   Never mount this app into FastAPI.
 - `CodexAcpClient` owns its child process and defaults to
   `npx -y @agentclientprotocol/codex-acp@1.1.7` with `INITIAL_AGENT_MODE=agent`.
@@ -130,7 +136,8 @@ retained solely for maintaining the upstream quickstart surface:
 - `server/src/acp_runtime/`: durable Workspace Scope, loopback settings routes,
   ACP child-process client, and local readiness coordinator.
 - `server/src/task_runtime/`: Work domain, SQLite store, Permission Broker, and
-  serial background ACP coordinator.
+  serial background ACP coordinator. Generic durable-result projection and the
+  bounded Managed completion envelope live in `task_runtime/presentation.py`.
 - `server/src/managed_ingress/`: production capabilities, safe Work tools,
   isolated MCP app, ngrok owner, and Agent-bound lifecycle coordinator.
 
@@ -141,6 +148,12 @@ retained solely for maintaining the upstream quickstart surface:
 - Keep RTC client creation StrictMode-safe.
 - Keep transcript speaker mapping based on actual UIDs, not heuristics.
 - Keep the Managed Voice LLM provider as the single v0.1 path unless a new architecture decision explicitly reopens provider ownership.
+- Keep provider-specific final-text cleanup at its ACP adapter boundary. The
+  Codex adapter may remove only the exact anchored skills-context notice; do not
+  add a generic warning filter to Task Runtime.
+- Never start a live Agent, ngrok tunnel, or microphone acceptance from an
+  offline verification command; live completion quality checks require explicit
+  authorization because they consume Agora minutes.
 
 ## Working Rules
 

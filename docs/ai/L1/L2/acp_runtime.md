@@ -105,6 +105,13 @@ callbacks map only safe tool-kind labels, bounded agent text, and bounded
 permission questions. Thought content, raw frames, private identifiers,
 authentication data, and exception text are not retained.
 
+After Codex message chunks are joined, the Codex adapter removes only the exact
+leading skills-context budget notice observed in live acceptance. It does not
+match generic `Warning:` text or remove the same sentence from the middle of a
+substantive result. Task Runtime then removes NULs, redacts credentials, stores
+the full bounded Markdown result as `FinalPresentation.inline`, and stores only
+`The work is done.` as the completed Work's deterministic speech fallback.
+
 ## Task Runtime Core
 
 `WorkStore` persists Workspace-scoped Work in SQLite before queueing it. It
@@ -158,14 +165,22 @@ on tunnel loss and forces Agent restart when the public URL changes.
 
 Terminal targeted Work wakes one local `WorkDeliveryCoordinator` only after the
 receipt commit. It revalidates the exact Agent and Workspace before atomically
-claiming `pending_delivery`, then calls Agent Speak with `APPEND` and
-`interruptable=True`. A normal SDK return records `accepted`; an exception
-after submission begins records `delivery_unknown` and is not retried. A
-missing Agent or Workspace mismatch leaves the result pending. Startup never
-scans old pending results, so a newer session cannot receive them.
+claiming `pending_delivery`. Completed Work becomes a compact
+`LOCAL_WORK_COMPLETED` JSON envelope capped at 8 KiB, with a 1-KiB normalized
+objective and the longest UTF-8-safe result prefix that fits. The coordinator
+calls `AgentSession.think` with listening `inject`, thinking/speaking
+`interrupt`, and `interruptable=True`; the Work ID appears only in request
+metadata. A normal SDK return records injected-input `accepted`, not generated
+text or playback. A received HTTP non-2xx rejection may use one fixed APPEND
+fallback. An ambiguous exception records `delivery_unknown`, is not retried,
+and cannot fall back. Failed Work keeps bounded APPEND speech, cancelled Work
+is silent, and a missing Agent or Workspace mismatch leaves the result pending.
+Startup never scans old pending results, so a newer session cannot receive it.
 
 SSE/Activity Panel, playback receipts, batching, proactive permission
-announcements, and reconnect rehydration remain deferred.
+announcements, and reconnect rehydration remain deferred. The synthetic Think
+input may be represented as a user-role history item; no frontend text-prefix
+filter is permitted without a trusted first-party correlation signal.
 
 ## Verification Boundary
 

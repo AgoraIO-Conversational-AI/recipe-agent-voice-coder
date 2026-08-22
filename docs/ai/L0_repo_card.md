@@ -11,7 +11,7 @@
 | Language      | Python 3.10+ (FastAPI + uvicorn) backend + Next.js 16 / React 19 web  |
 | Deploy Target | macOS local runtime; no supported remote Voice Coder deployment       |
 | Owner         | Agora Conversational AI DevEx                                        |
-| Last Reviewed | 2026-08-21                                                           |
+| Last Reviewed | 2026-08-22                                                           |
 | Recipe Role   | `acp-local`                                                          |
 | Base Recipe   | `agent-quickstart-python` @ `1.0.0`                                  |
 | Recipe Version | `0.1.0`                                                             |
@@ -46,8 +46,10 @@ listener and a launcher-owned, current-ngrok-compatible tunnel. Pending
 capabilities permit MCP discovery only; Work calls require exact Agent binding.
 The Managed Work prompt treats the selected Project Folder and registered tools
 as available capabilities, while `start_work` accepts a natural-language goal
-without enumerating anticipated task categories. Completed and failed Work is
-submitted once to its exact active Agent session; durable delivery state keeps
-status lookup authoritative when speech is unavailable or uncertain. SSE/UI,
-playback receipts, proactive permission, and reconnect replay remain deferred.
+without enumerating anticipated task categories. Completed Work keeps cleaned
+inline detail and re-enters its exact active Agent through a bounded Managed
+`/think` turn; failed Work keeps bounded direct speech and cancelled Work is
+silent. Durable delivery state keeps status lookup authoritative when speech is
+unavailable or uncertain. SSE/UI, playback receipts, proactive permission, and
+reconnect replay remain deferred.
 See [ACP Runtime](L1/L2/acp_runtime.md).

@@ -98,9 +98,20 @@ There is **no ESLint config file** in `web/` — Biome is the only TS/JS linter.
   They are offline-safe but do not establish real package launch or browser auth.
 - Task Runtime tests under `server/tests/task_runtime/` use fake ACP only and
   cover SQLite receipts, FIFO execution, permissions, cancellation, recovery,
-  and Workspace switch protection without starting Agora.
+  Workspace switch protection, durable result projection, and completion
+  envelope byte limits without starting Agora.
 - Managed ingress tests under `server/tests/managed_ingress/` use fake Agent,
   listener, Task Runtime, and ngrok boundaries; they never open a public tunnel.
+
+- Keep provider-specific final-text cleanup in the owning ACP adapter. Codex may
+  remove only its exact anchored skills-context notice in
+  `acp_runtime/codex.py`; never add a generic `Warning:` filter.
+- Keep backend-neutral cleanup, credential redaction, durable inline projection,
+  and `LOCAL_WORK_COMPLETED` envelope construction in
+  `task_runtime/presentation.py`. Do not summarize or interpret results there.
+- Completed delivery uses the exact Agent session's `think` method. Only a typed
+  known HTTP rejection may reach direct speech; successful or ambiguous calls
+  must not be followed by fallback or retry.
 
 ## File Naming
 

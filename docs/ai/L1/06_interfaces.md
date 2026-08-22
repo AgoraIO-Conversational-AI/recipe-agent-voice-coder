@@ -130,10 +130,20 @@ is never added to MCP or Work browser projections. The existing `/startAgent`
 Agent ID response remains unchanged. After completed or failed state commits,
 the local delivery coordinator may move `pending_delivery -> sending ->
 accepted|delivery_unknown`. It may release `sending` back to
-`pending_delivery` only when it proves Speak submission never began.
-`accepted` means the SDK Speak request returned normally, not that playback
-finished. `delivery_unknown` is not retried automatically. Cancelled Work stays
-`not_ready` for delivery.
+`pending_delivery` only when it proves submission did not occur.
+
+Completed Work stores `FinalPresentation(speech="The work is done.",
+inline=<cleaned full result>)`. Delivery serializes only `objective`, `result`,
+and `result_truncated` after the `LOCAL_WORK_COMPLETED` marker. The complete
+UTF-8 envelope is at most 8 KiB, the normalized objective is at most 1 KiB, and
+the result keeps the longest leading substring that fits valid compact JSON.
+The exact active session returns `CompletionThinkOutcome` as `accepted`,
+`unavailable`, or `rejected`. `accepted` means the SDK Think request returned
+normally, not that the LLM answered or playback finished. `unavailable`
+releases the claim; `rejected` means a received HTTP non-2xx response and may
+use one fixed APPEND fallback. Any ambiguous exception records
+`delivery_unknown`, is not retried, and cannot fall back. Failed Work keeps its
+safe APPEND error; cancelled Work stays `not_ready` for delivery.
 
 ## Token Shape
 

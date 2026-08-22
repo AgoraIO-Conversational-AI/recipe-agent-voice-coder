@@ -79,10 +79,11 @@ server/                   # Python FastAPI backend
       permissions.py      # one current-operation Permission Broker
       runtime.py          # serial FIFO ACP execution and workspace guard
       safety.py           # credential-pattern redaction before SQLite writes
+      presentation.py     # durable inline projection and bounded Think envelope
     managed_ingress/
       models.py           # capability and Agent lease value objects
       capabilities.py     # bearer binding and rate budgets
-      delivery.py         # exact-session terminal Work speech coordinator
+      delivery.py         # exact-session terminal Work Think/speech coordinator
       tools.py            # four safe Task Runtime projections
       http_policy.py      # auth, host/origin, size, and handler guards
       mcp_app.py          # production four-tool FastMCP surface

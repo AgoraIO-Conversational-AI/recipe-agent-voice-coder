@@ -136,3 +136,22 @@ not produce a user transcript.
 | Completion notification | Not proven | Without a Work receipt, proactive completion delivery could not run. |
 | Cost containment | Pass | Exactly one conversation was created; the failed input was not retried. |
 | Cleanup | Pass | The Agent leave request succeeded; after launcher shutdown, ports 3000, 8000, and 4040 were closed with no related process remaining. |
+
+## 2026-08-22 Real Microphone Voice E2E Acceptance
+
+A separately authorized follow-up used the selected Project Folder, the real
+Chrome microphone, the Managed voice LLM, the public MCP ingress, and the local
+Codex ACP runtime. An initial in-app-browser Agent was stopped immediately after
+the RTC client failed to join with an SDP parsing error; the successful Chrome
+conversation was then started and stopped explicitly.
+
+| Check | Result | Evidence |
+| ----- | ------ | -------- |
+| Real microphone and transcription | Pass | Chrome reached **RTC connected** and transcribed the user's request, **Tell me the root folder file structure.** |
+| Managed MCP discovery | Pass | Before the Agent joined, the backend accepted the authenticated `ListToolsRequest` handshake over the ngrok-backed MCP ingress. |
+| Voice to Work routing | Pass with retry | The first turn did not call the tool and asked what to do. After the user clarified **I'm saying just list them**, the Agent acknowledged the queued request and created Work `98efd426fecd4b8d8cc6b99d543f4511` with objective **List the root folder file structure**. |
+| Local Codex execution | Pass | The Work moved from `running` to `completed` and returned the real `recipe-agent-voice-coder` root structure from the selected Project Folder. |
+| Completion notification | Pass | The Work moved through `sending` to `accepted`; the backend's Agora `/speak` request returned 200 and the completion appeared in the live Agent transcript. `accepted` proves API acceptance, not playback completion. |
+| Result quality | Needs follow-up | The spoken result included an internal Codex skills-context warning and a long directory tree. The end-to-end transport works, but completion projection should suppress runtime warnings and better bound voice output. |
+| Cost containment | Pass with caveat | The failed in-app-browser Agent was left immediately after the RTC join error. One additional Chrome conversation completed the authorized test and was stopped as soon as delivery was verified. |
+| Cleanup | Pass | Both Agent leave requests returned 200. After launcher shutdown, ports 3000, 8000, and 4040 were closed and no supervisor, Next, ngrok, or `codex-acp` process remained. |

@@ -23,6 +23,16 @@ from task_runtime.runtime import (
 from task_runtime.store import WorkStore
 
 
+REPORTING_SUFFIX = (
+    "\n\nWhen reporting the result, lead with the substantive conclusion and "
+    "put supporting detail afterward."
+)
+
+
+def execution_objective(value: str) -> str:
+    return f"{value}{REPORTING_SUFFIX}"
+
+
 class FakeExecutionAcp:
     def __init__(self) -> None:
         self.opened: list[str] = []
@@ -132,7 +142,10 @@ async def test_start_work_returns_after_persistence_and_completes_in_background(
     assert context.store.get(accepted.work_id).state == "queued"
     assert context.acp.objectives == []
 
-    await wait_until(lambda: context.acp.objectives == ["Run the tests"], "prompt")
+    await wait_until(
+        lambda: context.acp.objectives == [execution_objective("Run the tests")],
+        "prompt",
+    )
     context.acp.complete("All tests passed.")
     await wait_until(
         lambda: context.store.get(accepted.work_id).state == "completed",
@@ -141,8 +154,38 @@ async def test_start_work_returns_after_persistence_and_completes_in_background(
     completed = context.store.get(accepted.work_id)
 
     assert completed.final_presentation is not None
-    assert completed.final_presentation.speech == "All tests passed."
+    assert completed.objective == "Run the tests"
+    assert completed.final_presentation.speech == "The work is done."
     assert completed.final_presentation.inline == "All tests passed."
+
+
+@pytest.mark.anyio
+async def test_completed_result_is_cleaned_before_terminal_notification(
+    runtime_context,
+):
+    context = runtime_context
+    observed = []
+
+    def terminal(work_id: str) -> None:
+        receipt = context.store.get(work_id)
+        observed.append(receipt.final_presentation)
+
+    context.runtime.set_terminal_callback(terminal)
+    accepted = await context.runtime.start_work(
+        "Inspect configuration",
+        "turn-clean-result",
+        delivery_agent_id="agent-a",
+    )
+    await wait_until(
+        lambda: context.store.get(accepted.work_id).state == "running",
+        "running",
+    )
+    context.acp.complete("Done\x00\nAPI_KEY=private-value")
+
+    await wait_until(lambda: len(observed) == 1, "terminal callback")
+
+    assert observed[0].speech == "The work is done."
+    assert observed[0].inline == "Done\nAPI_KEY=[REDACTED]"
 
 
 @pytest.mark.anyio
@@ -264,7 +307,7 @@ async def test_queue_has_no_small_count_cap_and_executes_fifo_without_concurrenc
             lambda index=index: len(context.acp.objectives) == index + 1,
             f"prompt {index}",
         )
-        assert context.acp.objectives[index] == f"Work {index}"
+        assert context.acp.objectives[index] == execution_objective(f"Work {index}")
         context.acp.complete(f"Completed {index}")
 
     await wait_until(
@@ -430,7 +473,8 @@ async def test_acp_process_failure_reopens_only_for_subsequent_work(runtime_cont
         "first failure",
     )
     await wait_until(
-        lambda: context.acp.objectives == ["First task", "Second task"],
+        lambda: context.acp.objectives
+        == [execution_objective("First task"), execution_objective("Second task")],
         "subsequent prompt",
     )
     context.acp.complete("Second task completed")

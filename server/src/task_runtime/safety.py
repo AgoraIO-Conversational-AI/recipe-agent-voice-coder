@@ -4,7 +4,7 @@ import re
 
 
 _NAMED_SECRET = re.compile(
-    r"(?i)\b(?P<key>[A-Z0-9_-]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD|PASSWD|"
+    r"(?i)\b(?P<key>[A-Z0-9_-]{0,64}(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD|PASSWD|"
     r"CERTIFICATE|AUTHORIZATION|COOKIE)[A-Z0-9_-]*)\b"
     r"(?P<separator>\s*[=:]\s*)"
     r"(?P<value>Bearer\s+[^\s,;]+|\"[^\"]*\"|'[^']*'|[^\s,;]+)"
@@ -26,7 +26,7 @@ _ENV_ASSIGNMENT = re.compile(
     r"(?P<value>[^\s,;]+)"
 )
 _URL_CREDENTIALS = re.compile(
-    r"(?i)(?P<scheme>[a-z][a-z0-9+.-]*://)(?P<credentials>[^/@\s]+@)"
+    r"(?i)(?P<scheme>[a-z][a-z0-9+.-]{0,31}://)(?P<credentials>[^/@\s]+@)"
 )
 _PEM_BLOCK = re.compile(
     r"-----BEGIN [A-Z0-9 ]*(?:PRIVATE KEY|CERTIFICATE)-----.*?"

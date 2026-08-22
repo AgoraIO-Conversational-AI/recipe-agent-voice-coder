@@ -22,11 +22,11 @@ from acp_runtime.workspace import WorkspaceService, WorkspaceStatus
 from .models import (
     NONTERMINAL_STATES,
     TERMINAL_STATES,
-    FinalPresentation,
     PermissionDecision,
     WorkReceipt,
 )
 from .permissions import PermissionBroker, PermissionResolution
+from .presentation import project_final_presentation
 from .store import WorkStore
 
 
@@ -257,7 +257,7 @@ class TaskRuntime:
                 raise TaskRuntimeError("workspace_not_ready")
             running = self.store.transition(receipt.work_id, "running")
             result = await self._acp.prompt(
-                running.objective,
+                _execution_objective(running.objective),
                 _WorkObserver(self, running),
             )
             self._finish_prompt(running.work_id, result)
@@ -286,10 +286,7 @@ class TaskRuntime:
         if result.stop_reason != "end_turn" or not result.final_text.strip():
             self._fail_work(current.work_id)
             return
-        presentation = FinalPresentation(
-            speech=_speech_from_result(result.final_text),
-            inline=result.final_text,
-        )
+        presentation = project_final_presentation(result.final_text)
         self.store.save_final(current.work_id, presentation)
         completed = self.store.transition(current.work_id, "completed")
         self._notify_terminal(completed)
@@ -339,9 +336,9 @@ class TaskRuntime:
         return status.workspace.id
 
 
-def _speech_from_result(value: str) -> str:
-    normalized = value.replace("\x00", "").strip()
-    encoded = normalized.encode("utf-8")
-    if len(encoded) <= 16 * 1024:
-        return normalized
-    return encoded[: 16 * 1024].decode("utf-8", errors="ignore").rstrip()
+def _execution_objective(objective: str) -> str:
+    return (
+        f"{objective}\n\n"
+        "When reporting the result, lead with the substantive conclusion and "
+        "put supporting detail afterward."
+    )

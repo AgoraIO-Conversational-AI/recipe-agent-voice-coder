@@ -36,6 +36,19 @@ _MAX_PERMISSION_OPTIONS = 8
 _CUSTOM_COMMAND_ERROR = (
     "VOICE_ACP_COMMAND_JSON must be a JSON array of non-empty argument strings"
 )
+_CODEX_SKILLS_CONTEXT_NOTICE = (
+    "Warning: Skill descriptions were shortened to fit the 2% skills context "
+    "budget. Codex can still see every skill, but some descriptions are shorter. "
+    "Disable unused skills or plugins to leave more room for the rest."
+)
+
+
+def _strip_codex_skills_notice(value: str) -> str:
+    """Remove only the exact leading runtime notice observed from Codex ACP."""
+    candidate = value.lstrip()
+    if not candidate.startswith(_CODEX_SKILLS_CONTEXT_NOTICE):
+        return value
+    return candidate[len(_CODEX_SKILLS_CONTEXT_NOTICE):].lstrip()
 
 
 @dataclass(frozen=True)
@@ -103,7 +116,9 @@ class _AcpCallback:
         self._message_chunks = []
 
     def deactivate(self) -> str:
-        final_text = "".join(self._message_chunks).strip()
+        final_text = _strip_codex_skills_notice(
+            "".join(self._message_chunks).strip()
+        )
         self._observer = None
         self._session_id = None
         self._message_chunks = []

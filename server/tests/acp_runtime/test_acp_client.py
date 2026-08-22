@@ -16,6 +16,13 @@ from acp_runtime.codex import CodexAcpClient, CodexCommand
 from tests.acp_runtime.fake_acp_agent import FakeAcpAgentProcess
 
 
+CODEX_SKILLS_NOTICE = (
+    "Warning: Skill descriptions were shortened to fit the 2% skills context "
+    "budget. Codex can still see every skill, but some descriptions are shorter. "
+    "Disable unused skills or plugins to leave more room for the rest."
+)
+
+
 class RecordingPromptObserver(AcpPromptObserver):
     def __init__(self, selected_option_id: str | None = None) -> None:
         self.events = []
@@ -277,6 +284,50 @@ async def test_prompt_streams_only_safe_updates_and_returns_final_text(
     ]
     assert "private reasoning" not in repr(observer.events)
     assert "SECRET=value" not in repr(observer.events)
+    await client.close()
+
+
+@pytest.mark.anyio
+async def test_prompt_removes_the_captured_leading_codex_skills_notice(
+    tmp_path, project
+):
+    fake_agent = FakeAcpAgentProcess(
+        tmp_path / "acp-skills-notice.txt",
+        prompt_result=(
+            f"{CODEX_SKILLS_NOTICE}\n\n"
+            "Repository structure:\n- README.md"
+        ),
+    )
+    client = CodexAcpClient(command=fake_agent.command)
+    await client.open(str(project))
+
+    result = await client.prompt("Inspect the project", RecordingPromptObserver())
+
+    assert result.final_text == "Repository structure:\n- README.md"
+    await client.close()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "prompt_result",
+    [
+        f"Useful result.\n\n{CODEX_SKILLS_NOTICE}",
+        "Warning: A different provider warning.\n\nUseful result.",
+    ],
+)
+async def test_prompt_preserves_nonleading_and_unrecognized_warnings(
+    tmp_path, project, prompt_result
+):
+    fake_agent = FakeAcpAgentProcess(
+        tmp_path / "acp-preserved-warning.txt",
+        prompt_result=prompt_result,
+    )
+    client = CodexAcpClient(command=fake_agent.command)
+    await client.open(str(project))
+
+    result = await client.prompt("Inspect the project", RecordingPromptObserver())
+
+    assert result.final_text == prompt_result
     await client.close()
 
 

@@ -108,6 +108,11 @@ export function LocalCodingSetup({
   const publishRuntime = (runtime: LocalRuntimeStatus) => {
     onRuntimeStatusChange(runtime)
     onStatusChange(runtime.workspace)
+    if (runtime.state === 'failed') {
+      setError(runtime.error ?? 'Could not start the coding Agent')
+    } else {
+      setError(null)
+    }
     if (runtime.state === 'ready') onReady()
   }
 
@@ -181,14 +186,16 @@ export function LocalCodingSetup({
     try {
       const started = await startClaudeSignIn()
       if (started.state === 'failed') throw new Error(started.error ?? 'Could not open Claude Code sign-in')
-      for (let attempt = 0; attempt < 120 && authPollGenerationRef.current === generation; attempt += 1) {
+      const deadline = Date.now() + 120_000
+      while (Date.now() < deadline && authPollGenerationRef.current === generation) {
         const auth = await getClaudeAuthStatus()
         if (auth.state === 'signed_in') {
           publishRuntime(await startLocalRuntime())
           return
         }
         if (auth.state === 'failed') throw new Error(auth.error ?? 'Could not check Claude Code sign-in')
-        await wait(1000)
+        const remaining = deadline - Date.now()
+        if (remaining > 0) await wait(Math.min(1000, remaining))
       }
       if (authPollGenerationRef.current === generation) setError('Sign-in was not completed. Try again when ready.')
     } catch (nextError) {
@@ -299,7 +306,7 @@ export function LocalCodingSetup({
             {busyMode === 'auth'
               ? 'Complete sign-in in the Terminal window…'
               : busyMode === 'agent'
-                ? `Starting ${agentSettings?.selected_profile.label ?? 'coding Agent'}…`
+                ? 'Switching coding Agent…'
                 : 'Finishing local setup…'}
           </div>
         ) : null}

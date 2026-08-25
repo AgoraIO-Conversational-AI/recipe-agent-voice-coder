@@ -8,7 +8,7 @@ from typing import Literal
 from .acp_client import AcpAuthenticationRequired, AcpClientPort
 from .workspace import WorkspaceService, WorkspaceStatus
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error")
 
 RuntimeState = Literal[
     "configuration_required",

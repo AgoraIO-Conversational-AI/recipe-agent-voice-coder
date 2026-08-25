@@ -39,7 +39,7 @@ ClaudeAuthState = Literal["signed_out", "waiting", "signed_in", "failed"]
 StatusRunner = Callable[[], Awaitable[tuple[int, str]]]
 TerminalLauncher = Callable[[tuple[str, ...]], Awaitable[None]]
 Clock = Callable[[], float]
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error")
 
 
 @dataclass(frozen=True)

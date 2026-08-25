@@ -6,7 +6,7 @@ import os
 import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Callable, Literal
 
 
 @dataclass(frozen=True)
@@ -116,22 +116,27 @@ class WorkspaceConfigStore:
 class WorkspaceService:
     """Validate and report the selected Workspace Scope."""
 
-    def __init__(self, store: WorkspaceConfigStore) -> None:
+    def __init__(
+        self,
+        store: WorkspaceConfigStore,
+        profile_provider: Callable[[], AgentProfile] | None = None,
+    ) -> None:
         self.store = store
+        self._profile_provider = profile_provider or (lambda: CODEX_PROFILE)
 
     def status(self) -> WorkspaceStatus:
         workspace = self.store.load()
         if workspace is None:
             return WorkspaceStatus(
                 state="unconfigured",
-                profile=CODEX_PROFILE,
+                profile=self._profile_provider(),
                 workspace=None,
             )
         path = Path(workspace.primary_directory)
         state = "ready" if path.is_absolute() and path.is_dir() else "invalid"
         return WorkspaceStatus(
             state=state,
-            profile=CODEX_PROFILE,
+            profile=self._profile_provider(),
             workspace=workspace,
         )
 
@@ -146,7 +151,7 @@ class WorkspaceService:
         self.store.save(workspace)
         return WorkspaceStatus(
             state="ready",
-            profile=CODEX_PROFILE,
+            profile=self._profile_provider(),
             workspace=workspace,
         )
 
@@ -162,6 +167,6 @@ class WorkspaceService:
         self.store.clear()
         return WorkspaceStatus(
             state="unconfigured",
-            profile=CODEX_PROFILE,
+            profile=self._profile_provider(),
             workspace=None,
         )

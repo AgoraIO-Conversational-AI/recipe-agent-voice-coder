@@ -6,6 +6,7 @@ import stat
 
 import pytest
 
+from acp_runtime.profiles import AGENT_DEFINITIONS
 from acp_runtime.workspace import WorkspaceConfigStore, WorkspaceService
 
 
@@ -20,6 +21,19 @@ def test_unconfigured_store_reports_codex_profile(tmp_path):
     assert status.profile.requires_primary_directory is True
     assert status.profile.supports_additional_directories is False
     assert status.workspace is None
+
+
+def test_workspace_projects_selected_profile_without_persisting_it(tmp_path):
+    store = WorkspaceConfigStore(tmp_path / "workspace.json")
+    selected_profile = AGENT_DEFINITIONS["claude-code"].profile
+    service = WorkspaceService(store, profile_provider=lambda: selected_profile)
+    project = tmp_path / "project"
+    project.mkdir()
+
+    status = service.select(str(project))
+
+    assert status.profile.id == "claude-code"
+    assert "agent_profile_id" not in json.loads(store.path.read_text(encoding="utf-8"))
 
 
 def test_select_resolves_and_persists_one_primary_directory(tmp_path):

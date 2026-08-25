@@ -14,7 +14,7 @@
 
 ## Project Folder Is Not a Sandbox
 
-The local Codex Project Folder is a persisted ACP Workspace Scope and context
+The local coding Agent Project Folder is a persisted ACP Workspace Scope and context
 for one session. It does not restrict child-process filesystem access. The
 default state file is `~/Library/Application Support/Agora Voice ACP/workspace.json`;
 `VOICE_ACP_STATE_DIR` changes only the parent state directory.

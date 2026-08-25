@@ -103,6 +103,40 @@ async function withStubBackend<T>(run: (baseUrl: string) => Promise<T>) {
       })
     }
 
+    if (request.method === 'GET' && url.pathname === '/local/agent') {
+      return Response.json({
+        code: 0,
+        data: {
+          selected_profile: { id: 'codex', label: 'Codex' },
+          profiles: [
+            { id: 'codex', label: 'Codex' },
+            { id: 'claude-code', label: 'Claude Code' },
+          ],
+        },
+        msg: 'success',
+      })
+    }
+
+    if (request.method === 'PUT' && url.pathname === '/local/agent') {
+      const parsedBody = (await request.json()) as { profile_id?: string }
+      assert(parsedBody.profile_id === 'claude-code', 'Agent selection should preserve the profile id')
+      return Response.json({
+        code: 0,
+        data: {
+          selected_profile: { id: 'claude-code', label: 'Claude Code' },
+          profiles: [
+            { id: 'codex', label: 'Codex' },
+            { id: 'claude-code', label: 'Claude Code' },
+          ],
+        },
+        msg: 'success',
+      })
+    }
+
+    if (request.method === 'GET' && url.pathname === '/local/auth/claude-code') {
+      return Response.json({ code: 0, data: { state: 'signed_out', error: null }, msg: 'success' })
+    }
+
     return new Response('not found', { status: 404 })
   }
 
@@ -175,6 +209,34 @@ async function main() {
     const runtimeBody = await getJson(runtimeResponse)
     assert(runtimeResponse.status === 200, 'GET /api/local/runtime should proxy successfully')
     assert(runtimeBody.code === 0, 'GET /api/local/runtime should preserve proxied success payload')
+
+    const agentResponse = await requestViaRewrite('/api/local/agent')
+    const agentBody = await getJson(agentResponse)
+    assert(agentResponse.status === 200, 'GET /api/local/agent should proxy successfully')
+    assert(
+      ((agentBody.data as Record<string, unknown>)?.selected_profile as Record<string, unknown>)?.id === 'codex',
+      'GET /api/local/agent should preserve the selected Agent',
+    )
+
+    const switchResponse = await requestViaRewrite('/api/local/agent', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_id: 'claude-code' }),
+    })
+    const switchBody = await getJson(switchResponse)
+    assert(switchResponse.status === 200, 'PUT /api/local/agent should proxy successfully')
+    assert(
+      ((switchBody.data as Record<string, unknown>)?.selected_profile as Record<string, unknown>)?.id === 'claude-code',
+      'PUT /api/local/agent should preserve the switched Agent',
+    )
+
+    const authResponse = await requestViaRewrite('/api/local/auth/claude-code')
+    const authBody = await getJson(authResponse)
+    assert(authResponse.status === 200, 'GET /api/local/auth/claude-code should proxy successfully')
+    assert(
+      (authBody.data as Record<string, unknown>)?.state === 'signed_out',
+      'GET /api/local/auth/claude-code should preserve bounded auth status',
+    )
   })
 
   if (originalBackendUrl) {

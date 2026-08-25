@@ -70,7 +70,7 @@ bun run dev
 ## Run Agora Voice Coder
 
 ```bash
-bun run dev:codex
+bun run dev:local
 ```
 
 The app loads Project Folder status first. While status is unknown, the pre-call
@@ -119,9 +119,9 @@ The launcher preflight validates macOS Apple Silicon, Bun/Node/Python/ngrok, and
 usable Agora configuration without printing secrets. Advanced examples:
 
 ```bash
-bun run dev:codex -- --workspace /absolute/project/path
-CODEX_PATH=/absolute/path/to/codex bun run dev:codex
-bun run dev:codex -- --acp-command-json '["custom-acp","--stdio"]'
+bun run dev:local -- --workspace /absolute/project/path
+CODEX_PATH=/absolute/path/to/codex bun run dev:local
+bun run dev:local -- --acp-command-json '["custom-acp","--stdio"]'
 ```
 
 `CODEX_API_KEY` and `OPENAI_API_KEY` may be passed to the child as advanced

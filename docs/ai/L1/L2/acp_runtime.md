@@ -5,8 +5,8 @@
 
 ## Scope and Non-Scope
 
-The local runtime adds Project Folder selection, durable Workspace Scope state,
-the Codex ACP client boundary, local readiness, and an offline-tested Task
+The local runtime adds Agent selection, Project Folder selection, durable
+Workspace Scope state, the shared profile-driven ACP client boundary, local readiness, and an offline-tested Task
 Runtime Core. The core implements durable Work receipts, serial ACP prompts,
 safe update/result mapping, one current-operation Permission Broker,
 cancellation, and restart recovery.
@@ -23,25 +23,26 @@ guarantee that an ACP child process cannot access other files.
 
 ## Start and Persist State
 
-Run `bun run dev:codex`. The launcher runs dependency checks, starts FastAPI on
+Run `bun run dev:local`. The launcher runs dependency checks, starts FastAPI on
 `127.0.0.1:8000` and Next on `127.0.0.1:3000`, and terminates the sibling when
 either child exits. It starts neither an Agora conversation nor ngrok until the
 user starts a conversation. Before readiness it validates macOS Apple Silicon,
 Bun/Node/Python/ngrok, and usable
 Agora configuration without printing secret values.
 
-The browser loads Workspace status before a conversation can start. If no valid
-folder is saved, Project Folder Settings is a blocking gate. The backend owns a
+The browser loads Agent settings and Workspace status before a conversation can
+start. If no valid folder is saved, Local Coding Setup is a blocking gate. The backend owns a
 native macOS picker, with manual path entry available in the UI. The resolved
 scope is atomically persisted at:
 
 ```text
 ~/Library/Application Support/Agora Voice ACP/workspace.json
+~/Library/Application Support/Agora Voice ACP/agent-settings.json
 ```
 
-Set `VOICE_ACP_STATE_DIR` to use a different parent state directory. The v0.1
-Codex Agent Profile requires one primary directory and supports no additional
-directories.
+Set `VOICE_ACP_STATE_DIR` to use a different parent state directory. Agent and
+Workspace settings persist separately. Both v0.1 profiles require one primary
+directory and support no additional directories.
 
 ## HTTP Contract
 
@@ -57,13 +58,19 @@ success envelope.
 | `DELETE /api/local/workspace` | `DELETE /local/workspace` | Close ACP and clear saved scope. |
 | `POST /api/local/workspace/browse` | `POST /local/workspace/browse` | Start the native picker and return `202` plus an opaque operation ID. |
 | `GET /api/local/workspace/browse/:operationId` | `GET /local/workspace/browse/{operation_id}` | Poll `picking` to `ready`, `cancelled`, or `failed`; `ready` includes `WorkspaceStatus`. |
+| `GET /api/local/agent` | `GET /local/agent` | Read profiles and remembered selection. |
+| `PUT /api/local/agent` | `PUT /local/agent` | Persist and activate `{ profile_id }`. |
+| `GET /api/local/auth/claude-code` | `GET /local/auth/claude-code` | Read bounded authentication readiness. |
+| `POST /api/local/auth/claude-code` | `POST /local/auth/claude-code` | Open or reuse one fixed Terminal login operation. |
 | `GET /api/local/runtime` | `GET /local/runtime` | Read `LocalRuntimeStatus`; never starts ACP. |
 | `POST /api/local/runtime` | `POST /local/runtime` | Explicitly activate ACP for a valid saved Workspace. |
 
 Non-loopback callers receive `403`. Invalid folder selection receives `400`.
 Picker cancellation and activation failures are terminal operation states, so
 the start request never stays open behind the Next proxy. A replacement that
-cannot make ACP ready restores the prior persisted folder selection.
+cannot make ACP ready restores the prior persisted folder selection, except
+typed authentication-required: that state keeps the new folder so Claude
+sign-in never forces a second selection.
 
 `WorkspaceStatus.state` is `unconfigured`, `ready`, or `invalid`.
 `LocalRuntimeStatus.state` is `configuration_required`, `starting`,
@@ -74,33 +81,36 @@ cannot make ACP ready restores the prior persisted folder selection.
 `LocalRuntimeCoordinator` serializes starts, replacements, and close operations
 so one `AcpClientPort` session is active at most once. It opens only a ready
 workspace, closes the old session before opening a replacement, and converts
-authentication failures into the user-safe ChatGPT sign-in instruction. Other
+authentication failures into profile-specific safe sign-in instructions. Other
 failures use one fixed safe message and never include exception text. Ordinary
 FastAPI startup invokes only shutdown cleanup; the local browser flow explicitly
 starts a saved Workspace.
 
-`CodexAcpClient.close()` is idempotent. It treats only a transport-level
+`LocalAcpClient.close()` is idempotent. It treats only a transport-level
 `ConnectionError` from `session/close` as an already completed close and still
 exits the child-process context; other failures remain visible.
 
-`CodexAcpClient` validates the resolved absolute directory, owns the child
+`LocalAcpClient` validates the resolved absolute directory, owns the child
 process, initializes ACP, and creates one session with `mcp_servers=[]`. The
-default command is pinned:
+profile commands are pinned:
 
 ```text
-npx -y @agentclientprotocol/codex-acp@1.1.7
+Codex:       npx -y @agentclientprotocol/codex-acp@1.1.7
+Claude Code: npx -y @agentclientprotocol/claude-agent-acp@0.70.0
 ```
 
-It adds `INITIAL_AGENT_MODE=agent`. When the ACP server advertises a `ChatGPT`
+Codex adds `INITIAL_AGENT_MODE=agent`. When its ACP server advertises a `ChatGPT`
 authentication method, the client still tries session creation with reusable
 credentials first. Only typed authentication-required invokes that method and
-one session-creation retry.
+one session-creation retry. Claude Code reuses existing authentication; its
+separate loopback auth service runs fixed status/login commands, opens at most
+one Terminal operation, and exposes no process output to the browser.
 
-`bun run dev:codex -- --workspace /absolute/path` applies the same Workspace
-validation as Settings. `CODEX_PATH`, `CODEX_API_KEY`, and `OPENAI_API_KEY` are
-advanced child pass-through values. `--acp-command-json` supplies an
-experimental Compatible command as a JSON argv array and never invokes a shell.
-All paths preserve agent mode and never log child environments. ACP prompt
+`bun run dev:local -- --workspace /absolute/path` applies the same Workspace
+validation as Setup. Profile-specific environment pass-through is allowlisted.
+`--acp-command-json` supplies an experimental compatible command as a JSON argv
+array and never invokes a shell. It does not change profile identity or auth
+behavior. No path logs child environments. ACP prompt
 callbacks map only safe tool-kind labels, bounded agent text, and bounded
 permission questions. Thought content, raw frames, private identifiers,
 authentication data, and exception text are not retained.

@@ -28,8 +28,8 @@ stable_contracts:
   - id: response.envelope
     summary: Successful backend responses use { code, msg, data }.
 derivative_extensions:
-  - id: local.codex-runtime
-    summary: Loopback-only Project Folder and ACP readiness foundation for the local Codex derivative.
+  - id: local.agent-runtime
+    summary: Loopback-only Agent selection, Project Folder, and ACP readiness foundation.
 ---
 
 # Recipe Contract
@@ -43,7 +43,7 @@ own `recipe_version`.
 ## Recipe Role
 
 - Role: `acp-local` derivative recipe, inheriting the `base` quickstart contract.
-- Target audience: developers extending the Python-backed Agora quickstart with a loopback-only local Codex ACP runtime.
+- Target audience: developers extending the Python-backed Agora quickstart with a loopback-only local coding-Agent ACP runtime.
 - Reuse model: clone, bind project, run, then customize backend agent behavior or browser UI; the local ACP runtime is an opt-in derivative surface.
 
 ## Recipe Scope
@@ -95,9 +95,9 @@ Do not recreate Agora ConvoAI integration from memory. Provider schemas, SDK bui
 | Success envelope | `{ "code": 0, "msg": "success", "data": ... }` where route has data. |
 | Verification entry points | `bun run verify:web`, `bun run verify:backend`, `bun run verify:web:proxy`, `bun run verify:local:fastapi`, `bun run verify:local`. |
 
-## Derivative Local Codex Extension
+## Derivative Local Coding Agent Extension
 
-The repository's local Codex foundation is intentionally separate from the
+The repository's local coding-Agent foundation is intentionally separate from the
 base quickstart contract. It adds Next rewrite-only `/api/local/*` routes for
 loopback FastAPI `/local/*` endpoints:
 
@@ -106,22 +106,24 @@ loopback FastAPI `/local/*` endpoints:
 | `GET`, `PUT`, `DELETE /api/local/workspace` | `/local/workspace` | Read, save, or clear one Project Folder Workspace Scope. |
 | `POST /api/local/workspace/browse` | `/local/workspace/browse` | Start the backend-owned native macOS picker and return an operation ID. |
 | `GET /api/local/workspace/browse/:operationId` | `/local/workspace/browse/{operation_id}` | Poll the picker operation to a terminal state. |
+| `GET`, `PUT /api/local/agent` | `/local/agent` | Read available profiles or switch the remembered Agent. |
+| `GET`, `POST /api/local/auth/claude-code` | `/local/auth/claude-code` | Read auth readiness or open/reuse the fixed terminal login flow. |
 | `GET /api/local/runtime` | `/local/runtime` | Read safe ACP readiness state without starting ACP. |
 | `POST /api/local/runtime` | `/local/runtime` | Explicitly activate ACP for a valid saved Workspace. |
 
-`bun run dev:codex` starts the loopback backend and frontend. The browser gate
+`bun run dev:local` starts the loopback backend and frontend. The browser gate
 requires one existing Project Folder before conversation start. That resolved
-folder is persisted locally and passed to ACP as session context; it is not a
-filesystem sandbox. The Codex profile supports one primary directory with no
-additional directories.
+folder is persisted separately from the Agent selection and passed to ACP as
+session context; it is not a filesystem sandbox. Both profiles support one
+primary directory with no additional directories.
 
 Ordinary FastAPI startup does not start ACP. The local flow explicitly activates
-`CodexAcpClient`, which starts one child process/session at a time. Its default
-is `npx -y @agentclientprotocol/codex-acp@1.1.7` with
-`INITIAL_AGENT_MODE=agent`. It tries reusable credentials before using an
-advertised ChatGPT method on typed authentication-required and retrying once.
-Advanced `CODEX_PATH`/API-key child pass-through and JSON-argv custom commands
-do not select full access or log their environment.
+`LocalAcpClient`, which starts one child process/session at a time. Agent
+definitions pin Codex ACP `1.1.7` and Claude Agent ACP `0.70.0`. Codex retains
+`INITIAL_AGENT_MODE=agent` and its advertised ChatGPT method. Claude Code uses
+a fixed loopback-owned status/login flow that can open one macOS Terminal and
+never accepts commands from the browser. Profile-specific child environment
+pass-through and JSON-argv overrides do not log secrets or change identity.
 
 The extension exposes exactly four authenticated MCP Work tools to Agora's
 Managed Voice LLM. Completed ACP output is cleaned and redacted, stored as full

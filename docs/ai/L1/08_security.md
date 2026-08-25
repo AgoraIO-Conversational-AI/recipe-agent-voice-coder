@@ -81,9 +81,10 @@ If you need real auth, add a FastAPI dependency that validates a header on each 
 - `server/scripts/run_fake_server.py` accepts the same routes with no validation. Do not deploy it.
 - The web client does not encrypt or sign the browser → Next → FastAPI path beyond TLS at the host level.
 
-## Local Codex Boundary
+## Local Coding Agent Boundary
 
-- `/local/workspace`, `/local/workspace/browse`, `/local/runtime`, and
+- `/local/workspace`, `/local/workspace/browse`, `/local/agent`,
+  `/local/auth/claude-code`, `/local/runtime`, and
   `/validation/admin/*` are registered on the FastAPI app only when
   `server.create_app(enable_local_routes=True)` — i.e. when
   `VOICE_ACP_LOCAL_RUNTIME=1`. Ordinary and public deployments build the default
@@ -106,9 +107,12 @@ If you need real auth, add a FastAPI dependency that validates a header on each 
   alone never exposes these routes.
 - The native macOS picker runs in the backend process, so the browser receives
   only the selected status payload and never direct filesystem-picker access.
+- Claude authentication runs only fixed status and login commands. The browser
+  cannot submit command text, receives no credential/process output, and one
+  backend operation owns at most one Terminal login window.
 - Project Folder gives ACP a resolved working-directory context. It is not a
   filesystem sandbox or access-control boundary; do not rely on it for isolation.
-- `CodexAcpClient` does not log ACP JSON-RPC frames, environment values,
+- `LocalAcpClient` does not log ACP JSON-RPC frames, environment values,
   authentication data, raw reasoning, or private protocol identifiers. Callback
   storage retains only safe update-kind summaries and bounded permission prompts.
 - Readiness failures return fixed safe messages rather than exception text,

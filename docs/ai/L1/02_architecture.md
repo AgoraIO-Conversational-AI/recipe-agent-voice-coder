@@ -92,32 +92,34 @@ Agent parameters: `data_channel="rtm"`, `enable_error_message=True`, `enable_met
 - Next.js rewrites hide backend placement from the browser — `/api/*` is the only URL the client knows.
 - Single repo keeps web and backend changes reviewable together while preserving deploy separation.
 
-## Derivative Local Codex Runtime
+## Derivative Local Coding Agent Runtime
 
-The local Codex foundation adds a separate loopback-only path without changing
+The local coding Agent foundation adds a separate loopback-only path without changing
 the quickstart conversation routes:
 
 ```text
-Project Folder Settings gate -> /api/local/* -> /local/* -> WorkspaceService
-  -> LocalRuntimeCoordinator -> CodexAcpClient child process -> ACP session
+Local Coding Setup gate -> /api/local/* -> AgentSettingsStore + WorkspaceService
+  -> LocalRuntimeCoordinator -> LocalAcpClient child process -> ACP session
   -> TaskRuntime -> SQLite WorkStore -> one FIFO ACP prompt worker
 Managed Voice LLM -> ngrok HTTPS -> authenticated /mcp/
   -> ManagedWorkTools -> TaskRuntime -> ACP session
 ```
 
-`WorkspaceService` persists one resolved primary directory. It is ACP context,
+`AgentSettingsStore` persists Codex or Claude Code independently from the
+Project Folder. `WorkspaceService` persists one resolved primary directory. It is ACP context,
 not a filesystem sandbox. `LocalRuntimeCoordinator` returns only safe
 readiness states and serializes one active session; it closes an old session
 before opening a replacement. Ordinary FastAPI lifespan startup only owns
 cleanup; it never starts ACP. The local page explicitly activates saved state
 through `POST /api/local/runtime`, while the GET is read-only.
 
-`CodexAcpClient` uses the pinned `npx` command, tries session creation with
-reusable credentials first, performs advertised ChatGPT auth only after typed
-authentication-required, and retries once with `mcp_servers=[]`. Advanced
-child pass-through and JSON-argv custom commands remain in agent mode and do
-not expose command environments. Offline tests replace this boundary with fake
-clients/processes.
+`LocalAcpClient` uses the selected profile's pinned `npx` command and tries
+session creation with reusable credentials first. Codex keeps its advertised
+ChatGPT flow and `INITIAL_AGENT_MODE=agent`. Claude Code reports typed auth
+required so the loopback service can open one fixed macOS Terminal login and
+retry without losing the folder. Advanced child pass-through is allowlisted;
+JSON-argv overrides do not change identity or expose environments. Offline
+tests replace these boundaries with fakes.
 
 The opted-in local app also owns `TaskRuntime`. It durably accepts
 Workspace-scoped Work before execution, runs one ACP prompt at a time, stores

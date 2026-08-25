@@ -29,7 +29,7 @@ CORS middleware: `allow_origins=["*"]`, `allow_credentials=True`.
 | `/api/startAgent`  | `${AGENT_BACKEND_URL}/startAgent`             |
 | `/api/stopAgent`   | `${AGENT_BACKEND_URL}/stopAgent`              |
 
-The local Codex derivative appends these loopback-only extension rewrites. They
+The local coding-Agent derivative appends these loopback-only extension rewrites. They
 do not alter the stable quickstart routes above. They register only when
 `VOICE_ACP_LOCAL_RUNTIME=1`, the backend URL is loopback, and Next is not in
 production mode:
@@ -39,6 +39,8 @@ production mode:
 | `/api/local/workspace` | `${AGENT_BACKEND_URL}/local/workspace` | GET, PUT, DELETE |
 | `/api/local/workspace/browse` | `${AGENT_BACKEND_URL}/local/workspace/browse` | POST |
 | `/api/local/workspace/browse/:operationId` | `${AGENT_BACKEND_URL}/local/workspace/browse/:operationId` | GET |
+| `/api/local/agent` | `${AGENT_BACKEND_URL}/local/agent` | GET, PUT |
+| `/api/local/auth/claude-code` | `${AGENT_BACKEND_URL}/local/auth/claude-code` | GET, POST |
 | `/api/local/runtime` | `${AGENT_BACKEND_URL}/local/runtime` | GET, POST |
 
 `verify-api-contracts.ts` asserts that no `web/app/api/**/route.ts` files exist. Adding one would create a competing handler in front of the rewrite — don't.
@@ -52,7 +54,7 @@ production mode:
 | Next build             | `AGENT_BACKEND_URL`                       |
 | Browser                | `NEXT_PUBLIC_AGENT_UID` (optional)        |
 | Local launcher/internal | `VOICE_ACP_LOCAL_RUNTIME`, `NEXT_PUBLIC_LOCAL_RUNTIME_ENABLED`, `VOICE_ACP_WORKSPACE` |
-| ACP child advanced     | `CODEX_PATH`, `CODEX_API_KEY`, `OPENAI_API_KEY` |
+| ACP child advanced     | `CODEX_PATH`, `CODEX_API_KEY`, `OPENAI_API_KEY`, `CLAUDE_CONFIG_DIR`, `ANTHROPIC_API_KEY` |
 | Compatible ACP command | `VOICE_ACP_COMMAND_JSON` (JSON argv array) |
 | Managed ingress ports  | `VOICE_ACP_MCP_PORT` (default `8001`); ngrok uses its default loopback inspection API on `4040` |
 
@@ -74,9 +76,12 @@ Successful `/local/*` responses use
 FastAPI also returns its normal validation error body for an invalid request
 shape. Clients must not expect a success envelope on non-2xx responses.
 
-`WorkspaceStatus` contains `state` (`unconfigured`, `ready`, or `invalid`), a
-Codex `profile`, and an optional workspace `{ id, label, primary_directory }`.
-The profile requires one primary directory and supports no additional directories.
+`WorkspaceStatus` contains `state` (`unconfigured`, `ready`, or `invalid`), the
+selected Agent `profile`, and an optional workspace `{ id, label,
+primary_directory }`. Both profiles require one primary directory and support
+no additional directories. `AgentSettingsStatus` lists `codex` and
+`claude-code`; `PUT /local/agent` persists and activates the requested profile.
+Switching is rejected while Work or a permission is active.
 `PUT` accepts `{ "path": "..." }`; the path must resolve to an existing
 absolute directory. `GET /local/runtime` is read-only; `POST /local/runtime`
 explicitly activates a valid saved Workspace. `LocalRuntimeStatus` uses
@@ -90,13 +95,12 @@ The asynchronous browse operation reports `picking`, `ready`, `cancelled`, or
 readiness reason and rejects in the browser; it never returns raw child or
 protocol errors.
 
-The default ACP command is pinned to `npx -y @agentclientprotocol/codex-acp@1.1.7`
-with `INITIAL_AGENT_MODE=agent`. It tries `new_session` with reusable credentials
-first. Only typed authentication-required triggers the advertised `ChatGPT`
-method and one retry. `CODEX_PATH`, `CODEX_API_KEY`, and `OPENAI_API_KEY` are
-advanced child pass-through values; custom ACP is a JSON argv array. Secret
-values and child environments are not logged, and full access is never selected
-automatically.
+Profile commands are pinned to Codex ACP `1.1.7` and Claude Agent ACP `0.70.0`.
+Codex keeps `INITIAL_AGENT_MODE=agent` and its ACP-advertised ChatGPT flow.
+Claude authentication exposes only bounded status plus a fixed backend-owned
+login action; the browser cannot supply a command or receive process output.
+Custom ACP remains a JSON argv array for the selected identity. Secret values
+and child environments are not logged.
 
 ## Internal Task Runtime Contract
 

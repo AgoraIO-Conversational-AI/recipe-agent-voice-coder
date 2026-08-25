@@ -26,7 +26,7 @@ agora project env write server/.env.local
 Run Agora Voice Coder:
 
 ```bash
-bun run dev:codex
+bun run dev:local
 ```
 
 The inherited generic quickstart path remains available for upstream
@@ -90,7 +90,7 @@ cp .env.example .env.local
 `.env.example` is the reference template. If you are not using the Agora CLI, edit `.env.local` and fill in your Agora credentials:
 - `AGORA_APP_ID` - Your Agora App ID (Required)
 - `AGORA_APP_CERTIFICATE` - Your Agora App Certificate (Required)
-- `HOST` - Optional bind host (`0.0.0.0` by default; local Codex fixes loopback)
+- `HOST` - Optional bind host (`0.0.0.0` by default; local coding Agent fixes loopback)
 - `PORT` - Optional bind port (`8000` by default)
 - Agora managed provider access should be enabled for this project
 
@@ -148,7 +148,7 @@ The service will start on port 8000 (or the port specified in `.env.local`).
 
 ## How This Fits The Repo
 
-- Voice Coder product flow: run `bun run dev:codex` from the repo root. It owns
+- Voice Coder product flow: run `bun run dev:local` from the repo root. It owns
   the loopback services, Project Folder, ACP session, Task Runtime, and ngrok
   MCP ingress.
 - Inherited quickstart maintenance: `bun run dev` starts only the generic
@@ -189,10 +189,12 @@ The repo-level `bun run verify:local:fastapi` check exercises this FastAPI app t
 
 ## Local ACP Runtime
 
-The Codex profile requires exactly one Project Folder. `WorkspaceService`
+The Codex and Claude Code profiles require exactly one Project Folder. `WorkspaceService`
 resolves and persists it as a Workspace Scope in
 `~/Library/Application Support/Agora Voice ACP/workspace.json` by default;
 set `VOICE_ACP_STATE_DIR` only when a different local state directory is needed.
+The selected Agent is persisted separately in `agent-settings.json` under the
+same state directory.
 The selected directory is ACP context for session creation and relative paths,
 not a filesystem sandbox.
 
@@ -204,6 +206,8 @@ backend. They are derivative extensions and do not change the stable
 - `GET`, `PUT`, `DELETE /local/workspace`
 - `POST /local/workspace/browse` (start the macOS native picker; returns `202` and an operation ID)
 - `GET /local/workspace/browse/{operation_id}` (poll picker status)
+- `GET`, `PUT /local/agent` (read or switch the remembered Agent profile)
+- `GET`, `POST /local/auth/claude-code` (bounded auth status or fixed Terminal login)
 - `GET /local/runtime` (readiness only; never starts ACP)
 - `POST /local/runtime` (explicitly activate a valid saved Workspace)
 
@@ -213,7 +217,7 @@ one session at a time. A folder replacement closes the old session before
 opening the new one; if the new session fails, the previous saved workspace
 record is restored. If the ACP child has already closed its transport during
 shutdown, that transport close is treated as complete while process cleanup
-still runs. The default `CodexAcpClient` starts the pinned on-demand command
+still runs. The default `LocalAcpClient` starts the pinned on-demand command
 `npx -y @agentclientprotocol/codex-acp@1.1.7`, uses `INITIAL_AGENT_MODE=agent`,
 and opens one ACP session with `mcp_servers=[]`. Session creation is attempted
 with reusable credentials first. A typed authentication-required response uses

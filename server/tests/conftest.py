@@ -43,6 +43,8 @@ def fake_env(monkeypatch):
         "CODEX_PATH",
         "CODEX_API_KEY",
         "OPENAI_API_KEY",
+        "CLAUDE_CONFIG_DIR",
+        "ANTHROPIC_API_KEY",
         "INITIAL_AGENT_MODE",
     ):
         monkeypatch.delenv(key, raising=False)

@@ -67,7 +67,7 @@ There is **no ESLint config file** in `web/` — Biome is the only TS/JS linter.
 - `LocalRuntimeCoordinator` owns serialized session open/close and exposes
   safe readiness only. Do not leak ACP frames, private identifiers, raw
   reasoning, auth data, or environment values.
-- `CodexAcpClient` owns one child process/session. It defaults to the pinned
+- `LocalAcpClient` owns one child process/session. It defaults to the pinned
   command and agent mode. It tries reusable authentication before a typed
   auth-required ChatGPT retry. Advanced `CODEX_PATH`, API-key pass-through, and
   JSON-argv custom commands never log child environments or auto-select full access.

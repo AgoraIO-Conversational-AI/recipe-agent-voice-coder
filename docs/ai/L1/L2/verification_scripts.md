@@ -12,7 +12,7 @@
 | Web → rewrite stub       | `web/scripts/verify-local-proxy.ts`          | `bun run verify:web:proxy`| Imports `next.config.ts`, resolves rewrites, fetches an in-process stub directly |
 | Web → FastAPI + FakeAgent| `web/scripts/verify-local-fastapi.ts`        | `bun run verify:local:fastapi` | Spawns FastAPI with `FakeAgent` patched in              |
 | Local launcher           | `scripts/verify-local-launcher.ts`           | `bun run verify:launcher` | Harmless child stubs prove single signal ownership, escalation, and residual cleanup |
-| Local preflight          | `scripts/local-codex-preflight.test.ts`      | `bun test scripts/local-codex-preflight.test.ts` | Certified platform/runtime/config rules without live services |
+| Local preflight          | `scripts/local-agent-preflight.test.ts`      | `bun test scripts/local-agent-preflight.test.ts` | Certified platform/runtime/config rules without live services |
 
 `bun run verify` is the portable public chain (`verify:public-repo` → `doctor`
 → `verify:web:lint` → `verify:web:api` → `verify:web:build`). `bun run
@@ -96,7 +96,7 @@ tests under `server/tests/architecture_validation/` and
   concurrent lifecycle handling.
 - Ordinary app startup with a saved Workspace, explicit runtime activation,
   safe readiness errors, and advanced override parsing/pass-through.
-- `CodexAcpClient` through a repository-owned fake ACP process that records
+- `LocalAcpClient` through a repository-owned fake ACP process that records
   protocol method names only. It validates saved-auth session creation,
   typed authentication-required retry, `new_session`, and process cleanup
   without starting Codex.
@@ -126,7 +126,7 @@ ACP, or any network endpoint.
 
 What it does:
 
-1. Checks that `dev:codex` delegates to `scripts/run-local-codex.sh`, which
+1. Checks that `dev:local` delegates to `scripts/run-local-agent.sh`, which
    replaces itself with `scripts/supervise-local.py` after parsing arguments.
 2. Starts the launcher only with injected harmless shell stubs through
    `LOCAL_BACKEND_COMMAND` and `LOCAL_FRONTEND_COMMAND`.
@@ -145,7 +145,7 @@ What it does:
 
 The injection variables and `LOCAL_LAUNCHER_GRACE_SECONDS` are test seams, not
 normal end-user command overrides.
-This check does not launch the real `dev:codex` services, Codex, browser auth,
+This check does not launch the real `dev:local` services, either coding Agent, browser auth,
 Agora, ngrok, or the native picker.
 
 ## Adding a New Route — Checklist
@@ -162,8 +162,8 @@ Agora, ngrok, or the native picker.
 - They do not call the real Agora Conversational AI API. Vendor model changes will not be caught by `bun run verify`.
 - They do not exercise RTC or RTM at the wire level. Browser regression testing requires `bun run dev` plus a real Agora project.
 - They do not run lint/format. Run `bun run lint` separately.
-- They do not prove the real Codex ACP package can download through `npx`, a
-  ChatGPT browser sign-in can complete, the native picker works on the host, or
+- They do not prove either real ACP package can download through `npx`, provider
+  sign-in can complete, the native picker works on the host, or
   ngrok ingress is reachable. These are separately authorized live/manual checks.
 
 ## Failure Modes

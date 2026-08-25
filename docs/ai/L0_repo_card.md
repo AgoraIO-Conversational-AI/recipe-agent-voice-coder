@@ -1,6 +1,6 @@
 # recipe-agent-voice-coder (python) — Repo Card
 
-> Next.js web client + Python FastAPI backend for an Agora Conversational AI voice agent, with a local Codex ACP runtime and authenticated Managed Voice LLM MCP ingress.
+> Next.js web client + Python FastAPI backend for an Agora Conversational AI voice agent, with selectable local Codex or Claude Code ACP runtimes and authenticated Managed Voice LLM MCP ingress.
 
 ## Identity
 
@@ -11,7 +11,7 @@
 | Language      | Python 3.10+ (FastAPI + uvicorn) backend + Next.js 16 / React 19 web  |
 | Deploy Target | macOS local runtime; no supported remote Voice Coder deployment       |
 | Owner         | Agora Conversational AI DevEx                                        |
-| Last Reviewed | 2026-08-22                                                           |
+| Last Reviewed | 2026-08-25                                                           |
 | Recipe Role   | `acp-local`                                                          |
 | Base Recipe   | `agent-quickstart-python` @ `1.0.0`                                  |
 | Recipe Version | `0.1.0`                                                             |
@@ -34,11 +34,13 @@ The Audience column helps agents prioritise: **Use** = consuming the quickstart'
 
 ## Derivative Local Runtime
 
-This repository also carries a local-only Codex foundation for a downstream
+This repository also carries a local-only coding-Agent foundation for a downstream
 voice-to-work derivative. Its asynchronous Project Folder picker, supervised
 local process lifecycle, ACP lifecycle, SQLite-backed Task Runtime Core, and
 `/api/local/*` routes are extension contracts, not part of the reusable
-three-route quickstart baseline. Missing configuration opens a guided Settings
+three-route quickstart baseline. Codex and Claude Code are pinned Agent profiles
+behind one shared ACP client. Agent choice and Project Folder persist separately.
+Missing configuration opens a guided Setup
 gate, cancellation is silent, ready setup returns directly to **Start
 Conversation**, and bounded activation failures remain actionable. The
 derivative owns an isolated four-tool MCP

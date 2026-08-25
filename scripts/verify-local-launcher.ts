@@ -15,14 +15,18 @@ const packageJson = JSON.parse(
 ) as {
 	scripts?: Record<string, string>;
 };
-const launcher = path.join(root, "scripts", "run-local-codex.sh");
+const launcher = path.join(root, "scripts", "run-local-agent.sh");
 const supervisor = path.join(root, "scripts", "supervise-local.py");
 const ngrokOwner = path.join(root, "server/src/managed_ingress/ngrok.py");
 
 assert(
-	packageJson.scripts?.["dev:codex"] ===
-		"bun run dev:codex:check && bash scripts/run-local-codex.sh",
-	"dev:codex should delegate sibling lifecycle cleanup to the local launcher",
+	packageJson.scripts?.["dev:local"] ===
+		"bun run dev:local:check && bash scripts/run-local-agent.sh",
+	"dev:local should delegate sibling lifecycle cleanup to the local launcher",
+);
+assert(
+	packageJson.scripts?.["dev:codex"] === "bun run dev:local",
+	"dev:codex should remain a compatibility alias",
 );
 assert(existsSync(launcher), "local launcher script should exist");
 assert(existsSync(supervisor), "local process supervisor should exist");
@@ -91,7 +95,7 @@ function childCommand(pidPath: string, body: string): string {
 
 function startLauncher(backend: string, frontend: string, args: string[] = []) {
 	return Bun.spawn({
-		cmd: ["bash", "scripts/run-local-codex.sh", ...args],
+		cmd: ["bash", "scripts/run-local-agent.sh", ...args],
 		cwd: process.cwd(),
 		env: {
 			...process.env,
@@ -136,7 +140,7 @@ function startTerminalLauncher(
 	frontend: string,
 	graceSeconds = 2,
 ) {
-	const child = spawn("bash", ["scripts/run-local-codex.sh"], {
+	const child = spawn("bash", ["scripts/run-local-agent.sh"], {
 		cwd: root,
 		detached: true,
 		env: {

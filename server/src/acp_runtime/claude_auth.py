@@ -2,17 +2,18 @@
 
 import asyncio
 import json
+import logging
 import shlex
 import time
 from dataclasses import dataclass
 from typing import Awaitable, Callable, Literal
 
+from .profiles import CLAUDE_ACP_PACKAGE
 
-CLAUDE_PACKAGE = "@agentclientprotocol/claude-agent-acp@0.70.0"
 CLAUDE_AUTH_STATUS_COMMAND = (
     "npx",
     "-y",
-    CLAUDE_PACKAGE,
+    CLAUDE_ACP_PACKAGE,
     "--cli",
     "auth",
     "status",
@@ -21,7 +22,7 @@ CLAUDE_AUTH_STATUS_COMMAND = (
 CLAUDE_LOGIN_COMMAND = (
     "npx",
     "-y",
-    CLAUDE_PACKAGE,
+    CLAUDE_ACP_PACKAGE,
     "--cli",
     "auth",
     "login",
@@ -38,6 +39,7 @@ ClaudeAuthState = Literal["signed_out", "waiting", "signed_in", "failed"]
 StatusRunner = Callable[[], Awaitable[tuple[int, str]]]
 TerminalLauncher = Callable[[tuple[str, ...]], Awaitable[None]]
 Clock = Callable[[], float]
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -91,6 +93,7 @@ class ClaudeAuthService:
         self._terminal_launcher = terminal_launcher
         self._clock = clock
         self._waiting_since: float | None = None
+        self._start_lock = asyncio.Lock()
 
     async def status(self) -> ClaudeAuthStatus:
         try:
@@ -111,22 +114,31 @@ class ClaudeAuthService:
             return ClaudeAuthStatus(
                 state="waiting" if self._waiting_since is not None else "signed_out"
             )
-        except Exception:
+        except Exception as exc:
+            logger.error(
+                "Claude Code auth status check failed error_type=%s",
+                type(exc).__name__,
+            )
             return ClaudeAuthStatus(
                 state="failed", error="Could not check Claude Code sign-in."
             )
 
     async def start(self) -> ClaudeAuthStatus:
-        current = await self.status()
-        if current.state == "signed_in":
-            return current
-        if self._waiting_since is not None:
+        async with self._start_lock:
+            current = await self.status()
+            if current.state == "signed_in":
+                return current
+            if self._waiting_since is not None:
+                return ClaudeAuthStatus(state="waiting")
+            try:
+                await self._terminal_launcher(CLAUDE_LOGIN_COMMAND)
+            except Exception as exc:
+                logger.error(
+                    "Claude Code auth terminal launch failed error_type=%s",
+                    type(exc).__name__,
+                )
+                return ClaudeAuthStatus(
+                    state="failed", error="Could not open Claude Code sign-in."
+                )
+            self._waiting_since = self._clock()
             return ClaudeAuthStatus(state="waiting")
-        try:
-            await self._terminal_launcher(CLAUDE_LOGIN_COMMAND)
-        except Exception:
-            return ClaudeAuthStatus(
-                state="failed", error="Could not open Claude Code sign-in."
-            )
-        self._waiting_since = self._clock()
-        return ClaudeAuthStatus(state="waiting")

@@ -103,9 +103,9 @@ There is **no ESLint config file** in `web/` — Biome is the only TS/JS linter.
 - Managed ingress tests under `server/tests/managed_ingress/` use fake Agent,
   listener, Task Runtime, and ngrok boundaries; they never open a public tunnel.
 
-- Keep provider-specific final-text cleanup in the owning ACP adapter. Codex may
-  remove only its exact anchored skills-context notice in
-  `acp_runtime/codex.py`; never add a generic `Warning:` filter.
+- Keep provider-specific final-text cleanup in the owning Agent definition.
+  Codex may remove only its exact anchored skills-context notice in
+  `acp_runtime/profiles.py`; never add a generic `Warning:` filter.
 - Keep backend-neutral cleanup, credential redaction, durable inline projection,
   and `LOCAL_WORK_COMPLETED` envelope construction in
   `task_runtime/presentation.py`. Do not summarize or interpret results there.

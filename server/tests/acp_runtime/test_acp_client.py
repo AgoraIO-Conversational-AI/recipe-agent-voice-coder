@@ -50,10 +50,11 @@ def fake_agent(tmp_path):
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("profile_id", ["codex", "claude-code"])
 async def test_client_initializes_and_creates_session_in_project_folder(
-    fake_agent, project
+    fake_agent, project, profile_id
 ):
-    client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
+    client = LocalAcpClient(lambda: AGENT_DEFINITIONS[profile_id], command_override=fake_agent.command)
 
     session = await client.open(str(project))
 
@@ -206,15 +207,16 @@ async def test_client_does_not_guess_an_unadvertised_authentication_method(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("profile_id", ["codex", "claude-code"])
 async def test_prompt_streams_only_safe_updates_and_returns_final_text(
-    tmp_path, project
+    tmp_path, project, profile_id
 ):
     fake_agent = FakeAcpAgentProcess(
         tmp_path / "acp-prompt-requests.txt",
         prompt_result="All tests passed.",
     )
     observer = RecordingPromptObserver()
-    client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
+    client = LocalAcpClient(lambda: AGENT_DEFINITIONS[profile_id], command_override=fake_agent.command)
     await client.open(str(project))
 
     result = await client.prompt("Run the tests", observer)
@@ -328,8 +330,9 @@ async def test_prompt_front_bounds_oversized_agent_text(tmp_path, project):
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("profile_id", ["codex", "claude-code"])
 async def test_prompt_maps_only_observer_selected_permission_option(
-    tmp_path, project
+    tmp_path, project, profile_id
 ):
     fake_agent = FakeAcpAgentProcess(
         tmp_path / "acp-permission-requests.txt",
@@ -337,7 +340,7 @@ async def test_prompt_maps_only_observer_selected_permission_option(
         requests_permission=True,
     )
     observer = RecordingPromptObserver(selected_option_id="allow-once")
-    client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
+    client = LocalAcpClient(lambda: AGENT_DEFINITIONS[profile_id], command_override=fake_agent.command)
     await client.open(str(project))
 
     await client.prompt("Update the project", observer)
@@ -354,15 +357,16 @@ async def test_prompt_maps_only_observer_selected_permission_option(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("profile_id", ["codex", "claude-code"])
 async def test_cancel_notifies_the_active_session_and_prompt_confirms_cancelled(
-    tmp_path, project
+    tmp_path, project, profile_id
 ):
     fake_agent = FakeAcpAgentProcess(
         tmp_path / "acp-cancel-requests.txt",
         blocks_until_cancel=True,
     )
     observer = RecordingPromptObserver()
-    client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
+    client = LocalAcpClient(lambda: AGENT_DEFINITIONS[profile_id], command_override=fake_agent.command)
     await client.open(str(project))
     prompt = asyncio.create_task(client.prompt("Wait", observer))
     for _ in range(100):

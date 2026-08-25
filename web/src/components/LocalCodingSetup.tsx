@@ -53,6 +53,7 @@ export function LocalCodingSetup({
 }: LocalCodingSetupProps) {
   const [manualPath, setManualPath] = useState('')
   const [busyMode, setBusyMode] = useState<BusyMode | null>(null)
+  const [busyAgentLabel, setBusyAgentLabel] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
   const selectionInFlightRef = useRef(false)
@@ -70,6 +71,7 @@ export function LocalCodingSetup({
   useEffect(() => {
     if (!open) {
       setBusyMode(null)
+      setBusyAgentLabel(null)
       setError(null)
       setManualPath('')
       selectionInFlightRef.current = false
@@ -119,6 +121,7 @@ export function LocalCodingSetup({
   const switchProfile = async (nextProfileId: string) => {
     if (isBusy || nextProfileId === profileId) return
     setBusyMode('agent')
+    setBusyAgentLabel(agentSettings?.profiles.find((profile) => profile.id === nextProfileId)?.label ?? null)
     setError(null)
     authPollGenerationRef.current += 1
     try {
@@ -128,6 +131,7 @@ export function LocalCodingSetup({
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : 'Could not switch the coding Agent')
     } finally {
+      setBusyAgentLabel(null)
       setBusyMode(null)
     }
   }
@@ -235,9 +239,7 @@ export function LocalCodingSetup({
               <h2 id="local-coding-setup-title" className="text-xl font-semibold tracking-[-0.025em] text-foreground">
                 Local Coding Setup
               </h2>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Choose your coding Agent and where it works.
-              </p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">Choose where your coding agent works.</p>
             </div>
           </div>
           {setupAction.canClose ? (
@@ -306,7 +308,7 @@ export function LocalCodingSetup({
             {busyMode === 'auth'
               ? 'Complete sign-in in the Terminal window…'
               : busyMode === 'agent'
-                ? 'Switching coding Agent…'
+                ? `Starting ${busyAgentLabel ?? 'coding agent'}…`
                 : 'Finishing local setup…'}
           </div>
         ) : null}

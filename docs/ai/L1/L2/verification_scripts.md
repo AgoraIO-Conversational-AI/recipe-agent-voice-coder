@@ -40,7 +40,8 @@ What it does:
 2. Imports `web/next.config.ts` and asserts `rewrites()` returns the expected `source` → `destination` triples.
 3. Imports `web/src/services/api.ts` and asserts each helper hits the correct URL with the correct body shape (via a mock `fetch`).
 4. Proves local rewrites require opt-in and covers GET/PUT/DELETE Workspace,
-   GET/POST runtime, and bounded local validation/error responses.
+   GET/PUT Agent settings, GET/POST Claude auth, GET/POST runtime, and bounded
+   local validation/error responses.
 
 When you add a route:
 
@@ -55,10 +56,12 @@ Purpose: smoke test the **rewrite mapping** without spawning Next dev or the rea
 
 What it does:
 
-1. Starts an in-process stub backend via `Bun.serve` that responds to `/get_config`, `/startAgent`, `/stopAgent` with canned JSON.
+1. Starts an in-process stub backend via `Bun.serve` that responds to the three
+   base routes plus local runtime, Agent settings, and Claude auth with canned JSON.
 2. Imports `next.config.ts` directly and calls its `rewrites()` async function to get the rewrite triples.
 3. For each browser-side path (e.g. `/api/get_config`), resolves the matching `rewrite.destination`, copies the query string, and `fetch`es the stub backend URL directly — no Next process is involved.
-4. Asserts canned payloads round-trip cleanly.
+4. Asserts base, Agent selection, Claude auth status, and runtime payloads
+   round-trip cleanly.
 
 This catches rewrite typos and body-shape regressions instantly. It does **not** catch Next-runtime issues (middleware, headers, edge runtime).
 

@@ -1,12 +1,14 @@
 """Coordinate one local ACP session with the saved Project Folder."""
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import Literal
 
 from .acp_client import AcpAuthenticationRequired, AcpClientPort
 from .workspace import WorkspaceService, WorkspaceStatus
 
+logger = logging.getLogger(__name__)
 
 RuntimeState = Literal[
     "configuration_required",
@@ -117,6 +119,12 @@ class LocalRuntimeCoordinator:
         try:
             await self._acp_client.open(primary_directory)
         except Exception as exc:
+            if not isinstance(exc, AcpAuthenticationRequired):
+                logger.error(
+                    "Local ACP activation failed profile=%s error_type=%s",
+                    profile_id,
+                    type(exc).__name__,
+                )
             self._state, self._error = _runtime_failure(exc)
             return self.status()
 

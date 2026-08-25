@@ -17,7 +17,7 @@
 | Next build/run | `AGENT_BACKEND_URL`                                                    |
 | FastAPI        | `AGORA_APP_ID`, `AGORA_APP_CERTIFICATE`, `AGENT_GREETING`, `HOST`, `PORT` |
 | Local launcher | `VOICE_ACP_LOCAL_RUNTIME`, `VOICE_ACP_WORKSPACE`, `VOICE_ACP_COMMAND_JSON` |
-| ACP child      | trimmed inherited env plus `INITIAL_AGENT_MODE=agent` and explicit `CODEX_PATH` / API-key pass-through |
+| ACP child      | trimmed inherited env plus profile allowlists: Codex `INITIAL_AGENT_MODE`, `CODEX_PATH`, `CODEX_API_KEY`, `OPENAI_API_KEY`; Claude `CLAUDE_CONFIG_DIR`, `ANTHROPIC_API_KEY` |
 
 Mark `AGORA_APP_CERTIFICATE` as a sensitive secret in whichever host runs the Python service. The certificate value never appears in `web/`.
 

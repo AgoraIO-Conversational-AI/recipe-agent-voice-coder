@@ -220,6 +220,14 @@ Codex:       npx -y @agentclientprotocol/codex-acp@1.1.7
 Claude Code: npx -y @agentclientprotocol/claude-agent-acp@0.70.0
 ```
 
+Release metadata needs one explicit recheck: the
+[`claude-agent-acp` source and package](https://github.com/agentclientprotocol/claude-agent-acp)
+identify the adapter code as Apache-2.0, while the current
+[ACP Registry](https://agentclientprotocol.com/get-started/registry) labels the
+Claude Agent entry `proprietary`. This recipe invokes the package and does not
+vendor its source. Before a public release, confirm how the adapter license and
+the separately governed Claude service should be described.
+
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for component boundaries and
 [docs/ai/L1/02_architecture.md](./docs/ai/L1/02_architecture.md) for the detailed
 lifecycle.

@@ -16,6 +16,7 @@ CODEX_SKILLS_CONTEXT_NOTICE = (
     "budget. Codex can still see every skill, but some descriptions are shorter. "
     "Disable unused skills or plugins to leave more room for the rest."
 )
+CLAUDE_ACP_PACKAGE = "@agentclientprotocol/claude-agent-acp@0.70.0"
 
 
 def _identity(value: str) -> str:
@@ -62,7 +63,7 @@ AGENT_DEFINITIONS: Mapping[str, AgentDefinition] = {
     ),
     "claude-code": AgentDefinition(
         profile=AgentProfile(id="claude-code", label="Claude Code"),
-        argv=("npx", "-y", "@agentclientprotocol/claude-agent-acp@0.70.0"),
+        argv=("npx", "-y", CLAUDE_ACP_PACKAGE),
         base_env={},
         forwarded_env=("CLAUDE_CONFIG_DIR", "ANTHROPIC_API_KEY"),
     ),

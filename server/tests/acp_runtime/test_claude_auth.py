@@ -1,5 +1,7 @@
 """Claude Code terminal-auth boundary tests."""
 
+import asyncio
+
 import pytest
 
 from acp_runtime.claude_auth import (
@@ -77,6 +79,32 @@ async def test_start_is_idempotent_while_waiting():
     await service.start()
 
     assert launcher.commands == [CLAUDE_LOGIN_COMMAND]
+
+
+@pytest.mark.anyio
+async def test_concurrent_start_opens_only_one_terminal():
+    started = asyncio.Event()
+    release = asyncio.Event()
+    commands = []
+
+    async def blocking_launcher(command):
+        commands.append(command)
+        started.set()
+        await release.wait()
+
+    service = ClaudeAuthService(
+        status_runner=FakeStatusRunner(1, '{"loggedIn":false}'),
+        terminal_launcher=blocking_launcher,
+    )
+
+    first = asyncio.create_task(service.start())
+    await started.wait()
+    second = asyncio.create_task(service.start())
+    await asyncio.sleep(0)
+    release.set()
+    await asyncio.gather(first, second)
+
+    assert commands == [CLAUDE_LOGIN_COMMAND]
 
 
 @pytest.mark.anyio

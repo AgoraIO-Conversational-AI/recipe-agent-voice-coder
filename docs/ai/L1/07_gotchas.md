@@ -14,10 +14,19 @@
 
 ## Project Folder Is Not a Sandbox
 
-The local Codex Project Folder is a persisted ACP Workspace Scope and context
+The local coding Agent Project Folder is a persisted ACP Workspace Scope and context
 for one session. It does not restrict child-process filesystem access. The
 default state file is `~/Library/Application Support/Agora Voice ACP/workspace.json`;
 `VOICE_ACP_STATE_DIR` changes only the parent state directory.
+
+## Picker Success Includes ACP Activation
+
+The asynchronous picker does not report `ready` immediately after the macOS
+dialog returns. Its selection first passes Workspace validation and local ACP
+activation. Native cancellation is a normal terminal state and must not be
+rendered as an error. Activation failure must preserve the existing bounded
+runtime or switch-guard reason; collapsing it to **Could not select the Project
+Folder** sends the user to the wrong recovery action.
 
 ## Offline ACP Coverage Is Not Live Acceptance
 
@@ -31,11 +40,16 @@ conversation start, or ngrok. Treat each as an authorized manual/live check.
 `LocalRuntimeStatus.state == "ready"` proves only that one ACP session is open.
 The MCP listener, ngrok tunnel, and capability are prepared when the user
 starts the Agora conversation. If the tunnel URL changes, the Agent must be
-restarted because its MCP endpoint cannot be updated in place. Completed and
-failed targeted Work is submitted to the exact original active Agent with
-APPEND priority. `accepted` proves API acceptance only. Missing sessions stay
-`pending_delivery`; ambiguous submission becomes `delivery_unknown` and is not
-replayed. `get_work_status` remains the authoritative fallback.
+restarted because its MCP endpoint cannot be updated in place. Completed
+targeted Work is injected into the exact original active Agent with
+`AgentSession.think`. `/think` has no APPEND action: listening supports
+`inject`, while thinking/speaking use intentional `interrupt`. Its normal
+response contains no generated answer or playback receipt, so `accepted` proves
+only input acceptance. The synthetic input may also appear as a user-role item
+in history or transcript; do not hide it by matching the marker text alone.
+Missing sessions stay `pending_delivery`; ambiguous submission becomes
+`delivery_unknown`, cannot fall back, and is not replayed. Failed Work keeps
+bounded APPEND speech. `get_work_status` remains the authoritative fallback.
 
 ## Local Runtime Overrides Are Explicit and Narrow
 

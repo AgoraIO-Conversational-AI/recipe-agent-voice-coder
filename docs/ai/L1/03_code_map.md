@@ -19,13 +19,13 @@ web/                      # Next.js 16 app (workspace member)
     page.tsx              # Renders <LandingPage />
   src/
     components/
-      LandingPage.tsx
+      LandingPage.tsx       # local setup checking gate + ready focus handoff
       ConversationComponent.tsx
       QuickstartConversationLayout.tsx
       QuickstartTranscriptPanel.tsx
       QuickstartPipelineMetrics.tsx
-      QuickstartPreCallCard.tsx
-      ProjectFolderSettings.tsx  # blocking local Codex Project Folder gate
+      QuickstartPreCallCard.tsx   # setup-aware primary action + ready status
+      LocalCodingSetup.tsx  # blocking selection/cancellation/failure UI
       ConnectionStatusPanel.tsx
       ConversationErrorCard.tsx
       MicrophoneSelector.tsx
@@ -67,10 +67,14 @@ server/                   # Python FastAPI backend
     server.py             # FastAPI app + APIRouter routes
     agent.py              # Agent class: start, stop, vendor chain
     acp_runtime/
+      profiles.py         # pinned Codex and Claude Code definitions
+      settings.py         # durable Agent selection
       workspace.py        # durable one-folder Workspace Scope
-      routes.py           # loopback-only settings/readiness routes
+      routes.py           # loopback-only setup/readiness/auth routes
       picker.py           # backend-owned native macOS picker
-      codex.py            # ACP child process/session client
+      local_client.py     # shared ACP child process/session client
+      codex.py            # Codex compatibility wrapper
+      claude_auth.py      # fixed macOS Terminal auth boundary
       launch.py           # validated --workspace launch override
       readiness.py        # one-session local readiness coordinator
     task_runtime/
@@ -79,10 +83,11 @@ server/                   # Python FastAPI backend
       permissions.py      # one current-operation Permission Broker
       runtime.py          # serial FIFO ACP execution and workspace guard
       safety.py           # credential-pattern redaction before SQLite writes
+      presentation.py     # durable inline projection and bounded Think envelope
     managed_ingress/
       models.py           # capability and Agent lease value objects
       capabilities.py     # bearer binding and rate budgets
-      delivery.py         # exact-session terminal Work speech coordinator
+      delivery.py         # exact-session terminal Work Think/speech coordinator
       tools.py            # four safe Task Runtime projections
       http_policy.py      # auth, host/origin, size, and handler guards
       mcp_app.py          # production four-tool FastMCP surface
@@ -105,8 +110,8 @@ server/                   # Python FastAPI backend
     run_fake_server.py    # Patches Agent to a FakeAgent for smoke tests
 
 scripts/
-  run-local-codex.sh       # argument parsing and sibling process supervision
-  local-codex-preflight.ts # platform/runtime/Agora config validation
+  run-local-agent.sh       # argument parsing and sibling process supervision
+  local-agent-preflight.ts # platform/runtime/Agora config validation
   verify-local-launcher.ts # harmless launcher integration checks
 ```
 
@@ -125,7 +130,7 @@ scripts/
 | `web/scripts/verify-local-fastapi.ts`               | Spawns `server/scripts/run_fake_server.py`, exercises full path.         |
 | `server/src/server.py`                              | FastAPI app, env loading, three routes, response envelope, error mapping.|
 | `server/src/agent.py`                               | `Agent` class — vendor chain + async session lifecycle.                  |
-| `server/src/acp_runtime/`                           | Local Codex derivative: workspace persistence, ACP, and readiness.      |
+| `server/src/acp_runtime/`                           | Local Coding Agent derivative: profiles, settings, workspace, ACP, auth, and readiness. |
 | `server/src/task_runtime/`                          | Durable Work, FIFO ACP execution, permissions, cancellation, recovery. |
 | `server/src/managed_ingress/`                       | Isolated MCP, per-Agent capability, ngrok, and ingress lifecycle.      |
 | `server/src/architecture_validation/`               | Managed Voice LLM evidence state, tools, and isolated public ingress.    |

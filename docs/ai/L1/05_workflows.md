@@ -70,14 +70,20 @@ bun run dev
 ## Run Agora Voice Coder
 
 ```bash
-bun run dev:codex
+bun run dev:local
 ```
 
-The app loads Project Folder status first. Without a valid saved directory, the
-Settings gate remains open and conversation start is blocked. Select with the
-backend-owned native macOS picker or the advanced manual path; a successful
-selection activates ACP and refreshes readiness. Do not describe the folder as
-a sandbox. A failed replacement restores the previous persisted selection.
+The app loads Project Folder status first. While status is unknown, the pre-call
+action reads **Checking local setup…** and is disabled. Without a valid saved
+directory, Settings opens automatically and conversation start is blocked
+without creating an error. Select with the backend-owned native macOS picker or
+the advanced manual path. The native modal contains keyboard focus, and a
+synchronous web guard prevents repeated clicks from starting concurrent picker
+operations. Cancelling the picker returns silently to Settings; a successful
+selection activates ACP, closes Settings, and focuses **Start
+Conversation** without another click. Bounded activation failures stay in
+Settings with **Try Again**. Do not describe the folder as a sandbox. A failed
+replacement restores the previous persisted selection.
 
 Use `GET /api/local/runtime` only to display readiness; it must not start ACP.
 For a valid saved Workspace, the local page uses `POST /api/local/runtime` to
@@ -87,20 +93,35 @@ Next deployments do not register `/api/local/*` rewrites.
 The opted-in local FastAPI lifespan starts the Task Runtime, marks interrupted
 nonterminal Work failed, and stops it before ACP and SQLite shutdown. After ACP
 is ready, **Start conversation** prepares the isolated four-tool MCP listener,
-starts ngrok, and binds one capability to the Agora Agent. Completed and failed
-Work is submitted once to the exact originating active Agent through APPEND
-Speak. API acceptance is persisted but is not playback proof. If the session is
-gone, the Workspace changed, or delivery is uncertain, `get_work_status`
-remains authoritative. Activity Panel, playback receipts, automatic replay,
-and proactive permission speech are not part of this milestone.
+starts ngrok, and binds one capability to the Agora Agent. The following
+completion path is an experimental prototype pending required
+live acceptance, not a stable recipe contract. Work completion is submitted
+once to the exact originating active Agent through
+a bounded `LOCAL_WORK_COMPLETED` Managed `/think` turn. Listening uses `inject`;
+thinking and speaking use `interrupt`; the produced speech remains
+interruptible. The static prompt requests plain spoken sentences without
+Markdown output while leaving durable inline Markdown unchanged. API acceptance
+is persisted but is not generated-text or playback proof. A definite HTTP
+rejection may use one fixed APPEND fallback;
+an ambiguous result is never retried or followed by speech. Failed Work keeps
+bounded APPEND speech and cancelled Work remains silent. If the session is gone
+or the Workspace changed, `get_work_status` remains authoritative. Activity
+Panel, playback receipts, automatic replay, and proactive permission speech are
+not part of this milestone.
+
+Offline verification uses fake sessions and consumes no Agora minutes. The
+first live check found acceptable conversational output and no recursive Work,
+but exposed Markdown in the assistant transcript while TTS stayed natural. The
+new plain-output rule and interruption recovery require a separately authorized
+live retest.
 
 The launcher preflight validates macOS Apple Silicon, Bun/Node/Python/ngrok, and
 usable Agora configuration without printing secrets. Advanced examples:
 
 ```bash
-bun run dev:codex -- --workspace /absolute/project/path
-CODEX_PATH=/absolute/path/to/codex bun run dev:codex
-bun run dev:codex -- --acp-command-json '["custom-acp","--stdio"]'
+bun run dev:local -- --workspace /absolute/project/path
+CODEX_PATH=/absolute/path/to/codex bun run dev:local
+bun run dev:local -- --acp-command-json '["custom-acp","--stdio"]'
 ```
 
 `CODEX_API_KEY` and `OPENAI_API_KEY` may be passed to the child as advanced

@@ -1,4 +1,15 @@
-import type { LocalRuntimeStatus, WorkspaceStatus } from './workspace'
+import type { BrowseWorkspaceOutcome, LocalRuntimeStatus, WorkspaceStatus } from './workspace'
+
+export async function applyBrowseOutcomeWithRuntimeRefresh(
+  browse: () => Promise<BrowseWorkspaceOutcome>,
+  getRuntime: () => Promise<LocalRuntimeStatus>,
+  publishRuntime: (runtime: LocalRuntimeStatus | null) => void,
+): Promise<{ state: 'cancelled' } | { state: 'ready'; workspace: WorkspaceStatus; runtime: LocalRuntimeStatus }> {
+  const outcome = await browse()
+  if (outcome.state === 'cancelled') return outcome
+  const selected = await selectWorkspaceWithRuntimeRefresh(async () => outcome.workspace, getRuntime, publishRuntime)
+  return { state: 'ready', ...selected }
+}
 
 export async function selectWorkspaceWithRuntimeRefresh(
   select: () => Promise<WorkspaceStatus>,
@@ -9,8 +20,8 @@ export async function selectWorkspaceWithRuntimeRefresh(
   try {
     const workspace = await select()
     const runtime = await getRuntime()
-    if (runtime.state !== 'ready') {
-      throw new Error(runtime.error ?? 'The local Codex runtime is not ready')
+    if (runtime.state !== 'ready' && runtime.state !== 'authentication_required') {
+      throw new Error(runtime.error ?? 'The local coding agent is not ready')
     }
     publishRuntime(runtime)
     return { workspace, runtime }

@@ -92,32 +92,34 @@ Agent parameters: `data_channel="rtm"`, `enable_error_message=True`, `enable_met
 - Next.js rewrites hide backend placement from the browser — `/api/*` is the only URL the client knows.
 - Single repo keeps web and backend changes reviewable together while preserving deploy separation.
 
-## Derivative Local Codex Runtime
+## Derivative Local Coding Agent Runtime
 
-The local Codex foundation adds a separate loopback-only path without changing
+The local coding Agent foundation adds a separate loopback-only path without changing
 the quickstart conversation routes:
 
 ```text
-Project Folder Settings gate -> /api/local/* -> /local/* -> WorkspaceService
-  -> LocalRuntimeCoordinator -> CodexAcpClient child process -> ACP session
+Local Coding Setup gate -> /api/local/* -> AgentSettingsStore + WorkspaceService
+  -> LocalRuntimeCoordinator -> LocalAcpClient child process -> ACP session
   -> TaskRuntime -> SQLite WorkStore -> one FIFO ACP prompt worker
 Managed Voice LLM -> ngrok HTTPS -> authenticated /mcp/
   -> ManagedWorkTools -> TaskRuntime -> ACP session
 ```
 
-`WorkspaceService` persists one resolved primary directory. It is ACP context,
+`AgentSettingsStore` persists Codex or Claude Code independently from the
+Project Folder. `WorkspaceService` persists one resolved primary directory. It is ACP context,
 not a filesystem sandbox. `LocalRuntimeCoordinator` returns only safe
 readiness states and serializes one active session; it closes an old session
 before opening a replacement. Ordinary FastAPI lifespan startup only owns
 cleanup; it never starts ACP. The local page explicitly activates saved state
 through `POST /api/local/runtime`, while the GET is read-only.
 
-`CodexAcpClient` uses the pinned `npx` command, tries session creation with
-reusable credentials first, performs advertised ChatGPT auth only after typed
-authentication-required, and retries once with `mcp_servers=[]`. Advanced
-child pass-through and JSON-argv custom commands remain in agent mode and do
-not expose command environments. Offline tests replace this boundary with fake
-clients/processes.
+`LocalAcpClient` uses the selected profile's pinned `npx` command and tries
+session creation with reusable credentials first. Codex keeps its advertised
+ChatGPT flow and `INITIAL_AGENT_MODE=agent`. Claude Code reports typed auth
+required so the loopback service can open one fixed macOS Terminal login and
+retry without losing the folder. Advanced child pass-through is allowlisted;
+JSON-argv overrides do not change identity or expose environments. Offline
+tests replace these boundaries with fakes.
 
 The opted-in local app also owns `TaskRuntime`. It durably accepts
 Workspace-scoped Work before execution, runs one ACP prompt at a time, stores
@@ -135,13 +137,24 @@ Agent, kept only in memory, and revoked before Agent/tunnel shutdown. A tunnel
 URL change requires an Agent restart because the endpoint is part of the Agent
 configuration.
 
-`WorkDeliveryCoordinator` receives only terminal Work IDs after Task Runtime
+The `/think` completion flow is implemented as an experimental prototype. Its
+first live check was conversationally acceptable and created no recursive Work,
+but assistant transcript Markdown prompted a plain-spoken, no-Markdown output
+rule that remains pending live retest. `WorkDeliveryCoordinator` receives only
+terminal Work IDs after Task Runtime
 commits completed or failed state. Each receipt privately retains its
-originating Agent ID. The coordinator revalidates that exact Work-capable
-session and Workspace, atomically claims `pending_delivery`, and submits the
-stored safe speech through Agent Speak with APPEND priority. Normal return is
-`accepted`; an ambiguous exception is `delivery_unknown` and is not retried.
-No session or a changed Workspace leaves the result pending for status lookup.
+originating Agent ID. Completed Work stores a cleaned full inline result and a
+fixed direct-speech fallback. The coordinator revalidates the exact
+Work-capable session and Workspace, atomically claims `pending_delivery`, builds
+an at-most-8-KiB `LOCAL_WORK_COMPLETED` JSON envelope, and calls
+`AgentSession.think` with listening `inject`, thinking/speaking `interrupt`, and
+`interruptable=True`. The static Managed prompt requires plain spoken sentences
+without Markdown output, but does not alter durable inline Markdown or envelope
+data. Normal return means only injected-input `accepted`.
+A definite HTTP rejection may use one APPEND fallback; an ambiguous exception
+is `delivery_unknown`, is never retried, and cannot fall back. Failed Work uses
+its bounded safe APPEND error, cancelled Work is silent, and no session or a
+changed Workspace leaves the result pending for status lookup.
 
 Agora can send MCP `initialize` and tool discovery before Agent creation
 returns. The prepared bearer therefore has a pending phase that admits only

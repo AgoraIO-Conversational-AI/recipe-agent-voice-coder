@@ -12,7 +12,7 @@
 | Web → rewrite stub       | `web/scripts/verify-local-proxy.ts`          | `bun run verify:web:proxy`| Imports `next.config.ts`, resolves rewrites, fetches an in-process stub directly |
 | Web → FastAPI + FakeAgent| `web/scripts/verify-local-fastapi.ts`        | `bun run verify:local:fastapi` | Spawns FastAPI with `FakeAgent` patched in              |
 | Local launcher           | `scripts/verify-local-launcher.ts`           | `bun run verify:launcher` | Harmless child stubs prove single signal ownership, escalation, and residual cleanup |
-| Local preflight          | `scripts/local-codex-preflight.test.ts`      | `bun test scripts/local-codex-preflight.test.ts` | Certified platform/runtime/config rules without live services |
+| Local preflight          | `scripts/local-agent-preflight.test.ts`      | `bun test scripts/local-agent-preflight.test.ts` | Certified platform/runtime/config rules without live services |
 
 `bun run verify` is the portable public chain (`verify:public-repo` → `doctor`
 → `verify:web:lint` → `verify:web:api` → `verify:web:build`). `bun run
@@ -40,7 +40,8 @@ What it does:
 2. Imports `web/next.config.ts` and asserts `rewrites()` returns the expected `source` → `destination` triples.
 3. Imports `web/src/services/api.ts` and asserts each helper hits the correct URL with the correct body shape (via a mock `fetch`).
 4. Proves local rewrites require opt-in and covers GET/PUT/DELETE Workspace,
-   GET/POST runtime, and bounded local validation/error responses.
+   GET/PUT Agent settings, GET/POST Claude auth, GET/POST runtime, and bounded
+   local validation/error responses.
 
 When you add a route:
 
@@ -55,10 +56,12 @@ Purpose: smoke test the **rewrite mapping** without spawning Next dev or the rea
 
 What it does:
 
-1. Starts an in-process stub backend via `Bun.serve` that responds to `/get_config`, `/startAgent`, `/stopAgent` with canned JSON.
+1. Starts an in-process stub backend via `Bun.serve` that responds to the three
+   base routes plus local runtime, Agent settings, and Claude auth with canned JSON.
 2. Imports `next.config.ts` directly and calls its `rewrites()` async function to get the rewrite triples.
 3. For each browser-side path (e.g. `/api/get_config`), resolves the matching `rewrite.destination`, copies the query string, and `fetch`es the stub backend URL directly — no Next process is involved.
-4. Asserts canned payloads round-trip cleanly.
+4. Asserts base, Agent selection, Claude auth status, and runtime payloads
+   round-trip cleanly.
 
 This catches rewrite typos and body-shape regressions instantly. It does **not** catch Next-runtime issues (middleware, headers, edge runtime).
 
@@ -96,7 +99,7 @@ tests under `server/tests/architecture_validation/` and
   concurrent lifecycle handling.
 - Ordinary app startup with a saved Workspace, explicit runtime activation,
   safe readiness errors, and advanced override parsing/pass-through.
-- `CodexAcpClient` through a repository-owned fake ACP process that records
+- `LocalAcpClient` through a repository-owned fake ACP process that records
   protocol method names only. It validates saved-auth session creation,
   typed authentication-required retry, `new_session`, and process cleanup
   without starting Codex.
@@ -126,13 +129,14 @@ ACP, or any network endpoint.
 
 What it does:
 
-1. Checks that `dev:codex` delegates to `scripts/run-local-codex.sh`, which
+1. Checks that `dev:local` delegates to `scripts/run-local-agent.sh`, which
    replaces itself with `scripts/supervise-local.py` after parsing arguments.
 2. Starts the launcher only with injected harmless shell stubs through
    `LOCAL_BACKEND_COMMAND` and `LOCAL_FRONTEND_COMMAND`.
 3. Proves a failing child returns failure and terminates its sibling.
-4. Proves terminal SIGINT, SIGTERM, and SIGHUP reach each child exactly once
-   with the stable `130`, `143`, and `129` launcher statuses.
+4. Proves terminal SIGINT, SIGTERM, and SIGHUP stop each child exactly once via
+   SIGTERM with the stable `130`, `143`, and `129` launcher statuses. A real
+   Python sleeper guards against interrupt tracebacks.
 5. Proves one duplicate SIGINT burst stays graceful, while a later deliberate
    Ctrl-C or a shortened test deadline returns `137` and removes
    signal-ignoring children. Normal root completion removes residual
@@ -144,7 +148,7 @@ What it does:
 
 The injection variables and `LOCAL_LAUNCHER_GRACE_SECONDS` are test seams, not
 normal end-user command overrides.
-This check does not launch the real `dev:codex` services, Codex, browser auth,
+This check does not launch the real `dev:local` services, either coding Agent, browser auth,
 Agora, ngrok, or the native picker.
 
 ## Adding a New Route — Checklist
@@ -161,8 +165,8 @@ Agora, ngrok, or the native picker.
 - They do not call the real Agora Conversational AI API. Vendor model changes will not be caught by `bun run verify`.
 - They do not exercise RTC or RTM at the wire level. Browser regression testing requires `bun run dev` plus a real Agora project.
 - They do not run lint/format. Run `bun run lint` separately.
-- They do not prove the real Codex ACP package can download through `npx`, a
-  ChatGPT browser sign-in can complete, the native picker works on the host, or
+- They do not prove either real ACP package can download through `npx`, provider
+  sign-in can complete, the native picker works on the host, or
   ngrok ingress is reachable. These are separately authorized live/manual checks.
 
 ## Failure Modes

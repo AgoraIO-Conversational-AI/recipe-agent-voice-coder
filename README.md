@@ -18,13 +18,21 @@ and cancellation, and speaks the result when it is done.
 - Uses Agora Managed STT, LLM, and TTS for the voice conversation.
 - Delegates durable background Work through authenticated MCP tools.
 - Relays coding-agent permission decisions through the voice conversation.
-- Supports status checks, cancellation, and spoken completion results.
+- Supports status checks, cancellation, and context-aware spoken completion
+  results through the current Managed Voice LLM conversation.
 
 ## Current Support
 
 - macOS on Apple Silicon
-- Codex through a pinned ACP adapter
-- Claude Code is the next planned Agent Profile; it is not included yet.
+- Codex and Claude Code through pinned ACP adapters
+- One remembered Agent selection and one separately remembered Project Folder
+
+> **Experimental completion prototype:** Managed `/think` re-entry is
+> implemented. Its first live check was conversationally acceptable and created
+> no recursive Work, but the assistant transcript contained Markdown even
+> though TTS did not read it aloud. The prompt now requires plain spoken text;
+> that transcript fix and interruption recovery still need live acceptance, so
+> this is not a stable recipe contract yet.
 
 ## Prerequisites
 
@@ -32,7 +40,8 @@ and cancellation, and speaks the result when it is done.
 - [Bun](https://bun.sh/)
 - [Agora CLI](https://github.com/AgoraIO/cli)
 - [ngrok](https://ngrok.com/)
-- Codex authentication supported by the pinned ACP adapter (ChatGPT or API key)
+- Node.js 22 or newer
+- Codex or Claude Code authentication supported by the selected ACP adapter
 
 ## Run It
 
@@ -48,19 +57,23 @@ agora project env write server/.env.local
 # One-time ngrok account setup, if it is not already configured:
 ngrok config add-authtoken <your-token>
 
-bun run dev:codex
+bun run dev:local
 ```
 
-Open [http://127.0.0.1:3000](http://127.0.0.1:3000). On first launch, select an
-existing **Project Folder**, then start a conversation and ask for an outcome in
-natural language. Starting a conversation uses Agora minutes; setup and offline
-verification do not.
+Open [http://127.0.0.1:3000](http://127.0.0.1:3000). On first launch, **Local
+Coding Setup** opens automatically. Choose Codex or Claude Code, then select an
+existing **Project Folder**. Successful setup closes the dialog and enables
+**Start Conversation** without a separate Save action. Cancelling the macOS
+picker simply returns to setup. Reopen the same dialog from the pre-call page
+to change either choice.
 
-The first Codex request reuses existing credentials when possible. If Codex ACP
-reports that authentication is required, complete its advertised ChatGPT login
-flow and retry.
+The selected Agent reuses existing credentials when possible. Codex follows
+its ACP-provided ChatGPT sign-in flow. When Claude Code needs authentication,
+setup opens one macOS Terminal window for the official Claude login command,
+waits for completion, and retries without asking for the folder again. Starting
+a conversation uses Agora minutes; setup and offline verification do not.
 
-Services started by `bun run dev:codex`:
+Services started by `bun run dev:local`:
 
 - Web app: `http://127.0.0.1:3000`
 - Local API: `http://127.0.0.1:8000`
@@ -74,7 +87,7 @@ Voice -> Agora Managed STT / LLM / TTS
       -> local Task Runtime
       -> selected Project Folder
       -> ACP over local stdio
-      -> local Codex
+      -> selected local coding agent
 ```
 
 1. The browser joins an Agora RTC/RTM channel and starts a managed voice Agent.
@@ -83,11 +96,18 @@ Voice -> Agora Managed STT / LLM / TTS
 3. Workspace-dependent requests become natural-language Work objectives. The
    public tool returns immediately while the local FIFO Task Runtime executes
    the objective through ACP.
-4. Codex activity and permission requests are converted into bounded,
+4. Coding-agent activity and permission requests are converted into bounded,
    voice-safe state. Permission decisions remain explicit.
-5. Completed or failed Work is submitted once to the originating active voice
-   Agent. Durable status remains authoritative if speech is unavailable or its
-   delivery outcome is uncertain.
+5. Completed Work keeps its full cleaned result in durable status and injects
+   one bounded `LOCAL_WORK_COMPLETED` envelope into the originating active
+   Agent through Agora `/think`. The Managed LLM turns it into a short answer
+   grounded in the live conversation and is instructed to output plain spoken
+   sentences without Markdown formatting. Failed Work keeps a bounded direct-speech
+   error; cancelled Work remains silent.
+6. A normal `/think` return records input acceptance only, not generated text,
+   playback, or proof that the user heard it. A definite HTTP rejection may use
+   one fixed `The work is done.` direct-speech fallback; ambiguous outcomes are
+   never retried. Durable status remains authoritative.
 
 ## Safety and Privacy
 
@@ -103,6 +123,9 @@ Voice -> Agora Managed STT / LLM / TTS
   browser or included in public MCP results.
 - Local Work state is stored in SQLite. Public status output is bounded and
   durable text is redacted before storage.
+- Completed ACP output is cleaned before storage and enters the Managed LLM as
+  bounded untrusted JSON data. The voice prompt forbids treating that result as
+  instructions or reading code, paths, logs, warnings, or protocol fields aloud.
 - Agent-native authentication and provider billing remain between you and the
   selected coding agent.
 
@@ -116,11 +139,13 @@ Primary backend environment file: [`server/.env.example`](server/.env.example).
 | `AGORA_APP_CERTIFICATE` | Yes | — | Server-only Agora App Certificate |
 | `AGENT_GREETING` | No | Built in | Opening voice message |
 | `VOICE_ACP_STATE_DIR` | No | macOS Application Support | Workspace and Work state parent directory |
-| `HOST` | No | `0.0.0.0` | `dev:codex` always binds the local API to `127.0.0.1` |
+| `HOST` | No | `0.0.0.0` | `dev:local` always binds the local API to `127.0.0.1` |
 | `PORT` | No | `8000` | Local API port |
 | `CODEX_PATH` | No | Packaged Codex | Advanced Codex binary override passed only to the ACP child |
 | `CODEX_API_KEY` | No | — | Advanced child-process credential pass-through |
 | `OPENAI_API_KEY` | No | — | Advanced child-process credential pass-through |
+| `CLAUDE_CONFIG_DIR` | No | Claude default | Advanced child-process configuration directory pass-through |
+| `ANTHROPIC_API_KEY` | No | — | Advanced child-process credential pass-through |
 | `VOICE_ACP_COMMAND_JSON` | No | Pinned adapter | Advanced JSON argv array; never evaluated by a shell |
 
 Agora manages the default voice STT, LLM, and TTS providers, so the voice
@@ -133,8 +158,8 @@ generated at runtime and are not developer-managed environment variables.
 # Setup and local run
 bun run setup
 bun run doctor:local
-bun run preflight:codex
-bun run dev:codex
+bun run preflight:local-agent
+bun run dev:local
 
 # Offline verification
 bun run verify
@@ -150,16 +175,17 @@ or consume Agora minutes.
 ### Advanced ACP launch options
 
 ```bash
-bun run dev:codex -- --workspace /absolute/path/to/project
-CODEX_PATH=/absolute/path/to/codex bun run dev:codex
-CODEX_API_KEY=... bun run dev:codex
-OPENAI_API_KEY=... bun run dev:codex
-bun run dev:codex -- --acp-command-json '["/absolute/path/to/acp-agent","--stdio"]'
+bun run dev:local -- --workspace /absolute/path/to/project
+CODEX_PATH=/absolute/path/to/codex bun run dev:local
+ANTHROPIC_API_KEY=... bun run dev:local
+bun run dev:local -- --acp-command-json '["/absolute/path/to/acp-agent","--stdio"]'
 ```
 
 The custom command must be a JSON argv array and is never run through a shell.
-These options do not bypass Project Folder validation or change the default
-Agent mode. Secret values and child environments are never logged.
+It replaces the launch command for the selected Agent identity; it does not
+change that identity or its authentication behavior. These options do not
+bypass Project Folder validation. Secret values and child environments are
+never logged.
 
 ### Managed voice validation harness
 
@@ -179,18 +205,28 @@ The web client owns RTC/RTM and the visible conversation. FastAPI owns Agora
 tokens, Agent lifecycle, Workspace settings, the Task Runtime, and the private
 MCP listener. The launcher owns the frontend, backend, ngrok, native picker,
 and ACP child-process lifecycle so one shutdown cleans up the complete local
-process group.
+process group. It gives children a graceful SIGTERM shutdown while preserving
+the terminal-facing exit status, including `130` for Ctrl-C.
 
 The selected Project Folder is persisted at
 `~/Library/Application Support/Agora Voice ACP/workspace.json` unless
 `VOICE_ACP_STATE_DIR` overrides the state directory. This compatibility path
 does not change when the repository is renamed.
 
-The default ACP command is pinned and launched on demand:
+The ACP commands are pinned and launched on demand:
 
 ```text
-npx -y @agentclientprotocol/codex-acp@1.1.7
+Codex:       npx -y @agentclientprotocol/codex-acp@1.1.7
+Claude Code: npx -y @agentclientprotocol/claude-agent-acp@0.70.0
 ```
+
+Release metadata needs one explicit recheck: the
+[`claude-agent-acp` source and package](https://github.com/agentclientprotocol/claude-agent-acp)
+identify the adapter code as Apache-2.0, while the current
+[ACP Registry](https://agentclientprotocol.com/get-started/registry) labels the
+Claude Agent entry `proprietary`. This recipe invokes the package and does not
+vendor its source. Before a public release, confirm how the adapter license and
+the separately governed Claude service should be described.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for component boundaries and
 [docs/ai/L1/02_architecture.md](./docs/ai/L1/02_architecture.md) for the detailed
@@ -202,7 +238,7 @@ lifecycle.
 - `server/src/agent.py` — Agora voice Agent lifecycle and managed provider setup
 - `server/src/managed_ingress/` — authenticated MCP ingress and Work tools
 - `server/src/task_runtime/` — durable Work, permissions, cancellation, and delivery
-- `server/src/acp_runtime/` — Project Folder state and local Codex ACP client
+- `server/src/acp_runtime/` — Agent settings, Project Folder state, and shared ACP client
 - `scripts/` — setup, verification, and supervised local launcher
 - `validation/` — optional architecture-evidence corpus and local results
 
@@ -210,13 +246,14 @@ lifecycle.
 
 | Problem | Fix |
 | --- | --- |
-| Setup or credentials are incomplete | Run `bun run doctor:local` and `bun run preflight:codex`. |
+| Setup or credentials are incomplete | Run `bun run doctor:local` and `bun run preflight:local-agent`. |
 | Agent greets but does not start Work | Confirm ngrok is authenticated, then restart and check that the selected Project Folder reports ready. |
-| Project Folder settings remain open | Select an existing directory; the folder is validated by the local backend. |
+| Local Coding Setup remains open | Follow the actionable message and use **Try Again**. Missing configuration and picker cancellation are not errors. |
 | Codex requests authentication | Complete the advertised ChatGPT flow, or configure a supported child-process API key. |
-| Port 3000 is already in use | Stop the exact process using that port, then run `bun run dev:codex` again. |
+| Claude Code requests authentication | Finish sign-in in the Terminal window opened by setup, then return to the browser; the selected folder is retained. |
+| Port 3000 is already in use | Stop the exact process using that port, then run `bun run dev:local` again. |
 | A previous terminal closed unexpectedly | Restart the launcher; interrupted nonterminal Work is marked failed rather than silently resumed. |
-| You need the latest result again | Ask for Work status; spoken delivery is intentionally not replayed into a newer Agent session. |
+| You need the latest result again | Ask for Work status; the full cleaned inline result remains durable, while spoken delivery is intentionally not replayed into a newer Agent session. |
 
 ## Upstream
 

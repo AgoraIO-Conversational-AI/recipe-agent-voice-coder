@@ -129,7 +129,7 @@ async def test_start_and_status_return_safe_workspace_scoped_projections(tools_c
         "state": "completed",
         "delivery_state": "pending_delivery",
         "final_presentation": {
-            "speech": "All tests passed",
+            "speech": "The work is done.",
             "inline": "All tests passed",
         },
         "error": None,

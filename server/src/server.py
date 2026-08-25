@@ -7,6 +7,7 @@ HTTP APIs:
 - POST /startAgent     -> Agent.start()
 - POST /stopAgent      -> Agent.stop()
 """
+import asyncio
 import logging
 import os
 import random
@@ -25,11 +26,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from agora_agent.agentkit.token import generate_convo_ai_token
 from agent import Agent
-from acp_runtime.codex import CodexAcpClient
+from acp_runtime.claude_auth import ClaudeAuthService
+from acp_runtime.local_client import LocalAcpClient
 from acp_runtime.launch import apply_workspace_override
 from acp_runtime.picker import MacOSDirectoryPicker
 from acp_runtime.readiness import LocalRuntimeCoordinator
-from acp_runtime.routes import build_runtime_router, build_workspace_router
+from acp_runtime.routes import (
+    build_agent_router,
+    build_claude_auth_router,
+    build_runtime_router,
+    build_workspace_router,
+)
+from acp_runtime.settings import AgentSettingsService, AgentSettingsStore
 from acp_runtime.workspace import WorkspaceConfigStore, WorkspaceService
 from architecture_validation.admin import build_admin_router
 from architecture_validation.runtime import state_store
@@ -82,15 +90,20 @@ except ValueError as e:
 
 
 # Local ACP readiness has its own lifecycle and does not start an Agora session.
-workspace_service = WorkspaceService(WorkspaceConfigStore.default())
+agent_settings = AgentSettingsService(AgentSettingsStore.default())
+workspace_service = WorkspaceService(
+    WorkspaceConfigStore.default(),
+    profile_provider=lambda: agent_settings.status().selected_profile,
+)
 try:
     apply_workspace_override(workspace_service, os.environ)
 except ValueError as exc:
     # A bad VOICE_ACP_WORKSPACE must not crash import; surface a clear warning
     # and leave the workspace unconfigured.
     logger.warning("Ignoring VOICE_ACP_WORKSPACE override: %s", exc)
-acp_client = CodexAcpClient()
+acp_client = LocalAcpClient(agent_settings.selected_definition)
 local_runtime = LocalRuntimeCoordinator(workspace_service, acp_client)
+claude_auth = ClaudeAuthService()
 
 
 router = APIRouter()
@@ -360,15 +373,31 @@ def create_app(
     )
     application.include_router(router)
     if enable_local_routes:
+        local_setup_lock = asyncio.Lock()
         application.include_router(
             build_workspace_router(
                 service=workspace_service,
                 picker=MacOSDirectoryPicker(),
                 runtime=local_runtime,
                 switch_guard=switch_guard,
+                mutation_lock=local_setup_lock,
             )
         )
-        application.include_router(build_runtime_router(runtime=local_runtime))
+        application.include_router(
+            build_runtime_router(
+                runtime=local_runtime, mutation_lock=local_setup_lock
+            )
+        )
+        application.include_router(
+            build_agent_router(
+                settings=agent_settings,
+                workspace=workspace_service,
+                runtime=local_runtime,
+                switch_guard=switch_guard,
+                mutation_lock=local_setup_lock,
+            )
+        )
+        application.include_router(build_claude_auth_router(service=claude_auth))
         application.include_router(build_admin_router(store=state_store))
     application.state.task_runtime = task_runtime
     application.state.work_store = work_store

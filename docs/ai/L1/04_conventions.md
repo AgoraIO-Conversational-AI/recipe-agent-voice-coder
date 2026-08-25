@@ -67,7 +67,7 @@ There is **no ESLint config file** in `web/` — Biome is the only TS/JS linter.
 - `LocalRuntimeCoordinator` owns serialized session open/close and exposes
   safe readiness only. Do not leak ACP frames, private identifiers, raw
   reasoning, auth data, or environment values.
-- `CodexAcpClient` owns one child process/session. It defaults to the pinned
+- `LocalAcpClient` owns one child process/session. It defaults to the pinned
   command and agent mode. It tries reusable authentication before a typed
   auth-required ChatGPT retry. Advanced `CODEX_PATH`, API-key pass-through, and
   JSON-argv custom commands never log child environments or auto-select full access.
@@ -98,9 +98,24 @@ There is **no ESLint config file** in `web/` — Biome is the only TS/JS linter.
   They are offline-safe but do not establish real package launch or browser auth.
 - Task Runtime tests under `server/tests/task_runtime/` use fake ACP only and
   cover SQLite receipts, FIFO execution, permissions, cancellation, recovery,
-  and Workspace switch protection without starting Agora.
+  Workspace switch protection, durable result projection, and completion
+  envelope byte limits without starting Agora.
 - Managed ingress tests under `server/tests/managed_ingress/` use fake Agent,
   listener, Task Runtime, and ngrok boundaries; they never open a public tunnel.
+
+- Keep provider-specific final-text cleanup in the owning Agent definition.
+  Codex may remove only its exact anchored skills-context notice in
+  `acp_runtime/profiles.py`; never add a generic `Warning:` filter.
+- Keep backend-neutral cleanup, credential redaction, durable inline projection,
+  and `LOCAL_WORK_COMPLETED` envelope construction in
+  `task_runtime/presentation.py`. Do not summarize or interpret results there.
+- Completed delivery uses the exact Agent session's `think` method. Only a typed
+  known HTTP rejection may reach direct speech; successful or ambiguous calls
+  must not be followed by fallback or retry.
+- Keep completion transcript formatting model-enforced in the static Managed
+  prompt: plain spoken sentences with no Markdown output. Preserve durable
+  inline Markdown and do not add a frontend renderer, transcript text filter,
+  or pre-injection Markdown parser for this requirement.
 
 ## File Naming
 

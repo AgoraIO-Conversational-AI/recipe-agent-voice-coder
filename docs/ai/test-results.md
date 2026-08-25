@@ -50,7 +50,7 @@ The tree passed structural checks and a clean read-only content test. Source-ver
 ## Recommended Fixes
 
 - [x] Update `L0_repo_card.md` `Last Reviewed` to 2026-05-28.
-- [x] Fix setup sequence and `agora-agents>=2.0.0` dependency wording in `L1/01_setup.md`.
+- [x] Fix setup sequence and stale Agora SDK dependency wording in `L1/01_setup.md`.
 - [x] Align `L1/02_architecture.md` rewrite snippet with `web/next.config.ts`.
 - [x] Clarify hook-owned cleanup, FastAPI error detail shape, git conventions, and `py_compile` limits in `L1/04_conventions.md`.
 - [x] Replace CI wording with local pre-ship checks in `L1/06_interfaces.md`.
@@ -87,3 +87,112 @@ Retested: 2026-05-28
 | `bun run verify:web:api` | Pass | API contract checks passed. |
 | `bun run verify:web:proxy` | Pass | Initial sandbox run could not bind local ports; rerun with escalation passed. |
 | `bun run verify:web` | Blocked | Doctor and API checks passed after `bun install`; `next build` failed because restricted network could not fetch Google Fonts for `next/font`. |
+
+## 2026-08-20 Project Folder Setup Acceptance
+
+This acceptance used mocked loopback Workspace/runtime responses only. It did
+not open the native picker, start ngrok, call Agora, or consume Agora minutes.
+
+| Check | Result | Evidence |
+| ----- | ------ | -------- |
+| Missing Workspace opens Settings automatically | Pass | The pre-call page rendered a native `dialog` with **Choose a Project Folder** and no start error. |
+| Modal contains keyboard focus | Pass | Eight forward Tab presses plus Shift+Tab kept `document.activeElement` inside the dialog. |
+| Picker cancellation is silent | Pass | The dialog stayed open without cancellation error copy. |
+| Failure remains actionable after cancellation | Pass | **Needs attention**, the bounded runtime error, and **Try Again** remained visible after a cancelled retry. |
+| Repeated click guard | Pass | Two synchronous button clicks produced one `POST /api/local/workspace/browse` request. |
+| Successful setup handoff | Pass | The dialog closed and focus moved to **Start Conversation** after a mocked ready outcome. |
+| Narrow layout | Pass | At 390 by 844 pixels, neither the document nor dialog overflowed horizontally. |
+| Browser errors | Pass | No new page errors were observed; the existing Agora logo aspect-ratio development warning remains unrelated. |
+
+## 2026-08-21 Real macOS Local Runtime Acceptance
+
+This acceptance used the real `bun run dev:codex` entry point, macOS folder
+picker, and Codex ACP child process. It did not click **Start Conversation**,
+start ngrok, create an Agora Agent, or consume Agora minutes.
+
+| Check | Result | Evidence |
+| ----- | ------ | -------- |
+| Native folder selection | Pass | The `202 + operation_id` flow completed `ready` for `/Users/zhangqianze/Documents/recipe-agent-voice-coder`. |
+| Persisted Workspace | Pass | `GET /local/workspace` returned the selected resolved directory and Codex profile. |
+| Codex readiness and cwd | Pass | `POST /local/runtime` returned `ready`; the live `codex-acp` process cwd matched the selected Project Folder. No additional login was required on this machine. |
+| Agora cost boundary | Pass | Browser network history contained no `/api/startAgent` request, port 4040 remained closed, and no Agora Agent was created. |
+| One-command cold start | Pass | From closed ports, `bun run dev:codex` completed preflight and started Next, FastAPI, and the local Codex runtime. |
+| Quiet Ctrl-C | Pass after fix | The initial live run exposed Python interrupt tracebacks. The supervisor now sends child SIGTERM while retaining launcher status `130`; the same live flow exited without traceback. |
+| Residual cleanup | Pass | After shutdown, ports 3000, 8000, and 4040 were closed and no supervisor, Next, `concurrently`, or `codex-acp` process remained. |
+
+## 2026-08-22 Controlled Voice E2E Attempt
+
+One explicitly authorized Agora conversation used a local prerecorded fake
+microphone input. The attempt was stopped without retrying when the input did
+not produce a user transcript.
+
+| Check | Result | Evidence |
+| ----- | ------ | -------- |
+| Agent lifecycle | Pass | The live Agent joined the RTC channel, the client reported connected, and `POST /api/stopAgent` returned 200. |
+| Managed MCP discovery | Pass | The public tunnel became available and the backend processed the authenticated `ListToolsRequest` handshake. |
+| Greeting delivery | Pass | The transcript received the Agent greeting, **Voice coding is ready.** |
+| Synthetic microphone input | Failed | Agora reported `AUDIO_INPUT_LEVEL_TOO_LOW`; the prerecorded request never appeared as a user transcript. |
+| Voice to Work routing | Not proven | No new Work receipt was created, so this attempt does not prove Managed LLM tool selection, MCP `start_work`, or Codex execution. |
+| Completion notification | Not proven | Without a Work receipt, proactive completion delivery could not run. |
+| Cost containment | Pass | Exactly one conversation was created; the failed input was not retried. |
+| Cleanup | Pass | The Agent leave request succeeded; after launcher shutdown, ports 3000, 8000, and 4040 were closed with no related process remaining. |
+
+## 2026-08-22 Real Microphone Voice E2E Acceptance
+
+A separately authorized follow-up used the selected Project Folder, the real
+Chrome microphone, the Managed voice LLM, the public MCP ingress, and the local
+Codex ACP runtime. An initial in-app-browser Agent was stopped immediately after
+the RTC client failed to join with an SDP parsing error; the successful Chrome
+conversation was then started and stopped explicitly.
+
+| Check | Result | Evidence |
+| ----- | ------ | -------- |
+| Real microphone and transcription | Pass | Chrome reached **RTC connected** and transcribed the user's request, **Tell me the root folder file structure.** |
+| Managed MCP discovery | Pass | Before the Agent joined, the backend accepted the authenticated `ListToolsRequest` handshake over the ngrok-backed MCP ingress. |
+| Voice to Work routing | Pass with retry | The first turn did not call the tool and asked what to do. After the user clarified **I'm saying just list them**, the Agent acknowledged the queued request and created Work `98efd426fecd4b8d8cc6b99d543f4511` with objective **List the root folder file structure**. |
+| Local Codex execution | Pass | The Work moved from `running` to `completed` and returned the real `recipe-agent-voice-coder` root structure from the selected Project Folder. |
+| Completion notification | Pass | The Work moved through `sending` to `accepted`; the backend's Agora `/speak` request returned 200 and the completion appeared in the live Agent transcript. `accepted` proves API acceptance, not playback completion. |
+| Result quality | Needs follow-up | The spoken result included an internal Codex skills-context warning and a long directory tree. The end-to-end transport works, but completion projection should suppress runtime warnings and better bound voice output. |
+| Cost containment | Pass with caveat | The failed in-app-browser Agent was left immediately after the RTC join error. One additional Chrome conversation completed the authorized test and was stopped as soon as delivery was verified. |
+| Cleanup | Pass | Both Agent leave requests returned 200. After launcher shutdown, ports 3000, 8000, and 4040 were closed and no supervisor, Next, ngrok, or `codex-acp` process remained. |
+
+## 2026-08-22 Managed Completion Re-entry Offline Verification
+
+This implementation check used only fake ACP and Agora session boundaries. It
+did not start ngrok, create an Agora Agent, open a microphone, or consume Agora
+conversation minutes.
+
+| Command | Result | Evidence |
+| --- | --- | --- |
+| `PYTHONPATH=src pytest tests/acp_runtime/test_acp_client.py -q` | Pass | 22 tests; the exact leading Codex skills-context notice is removed while unrelated and non-leading warnings remain, and oversized output is front-bounded safely. |
+| `PYTHONPATH=src pytest tests/task_runtime -q` | Pass | 44 tests; completed Work stores fixed fallback speech plus cleaned bounded inline detail, long credential names remain redacted, and compact JSON envelopes remain within 8 KiB under UTF-8 and escape expansion. |
+| `PYTHONPATH=src pytest tests/managed_ingress/test_agent_bridge.py -q` | Pass | 11 tests; the exact active Work session receives the approved Think action values, and known HTTP rejection remains distinct from ambiguous SDK failure. |
+| `PYTHONPATH=src pytest tests/managed_ingress -q` | Pass | 61 tests; successful, unavailable, rejected, ambiguous, failed, cancelled, Workspace-mismatch, shutdown, and duplicate-notification paths use the approved delivery states. |
+| `bun run verify:backend` | Pass | 221 tests across architecture validation, ACP runtime, Task Runtime, and Managed ingress; four existing dependency warnings. |
+| `bun run verify:local:fastapi` | Pass | FakeAgent local FastAPI proxy smoke completed without live Agora. |
+| `bun run verify:web:proxy` | Pass | Loopback-only local rewrite checks passed. |
+| `bun run verify:web:build` | Pass | Next.js 16.2.6 production build and TypeScript checks completed. |
+| `bun run verify:public-repo` | Pass | Local-only `docs/superpowers` material remains untracked and the public boundary check passed. |
+
+### First Live Managed Completion Check
+
+The user explicitly started and ended one real conversation. Backend evidence
+showed one new Work, `5bf042d45ec243daa9dd5c62891d28fc`, completed with
+delivery `accepted`; Agora `/think` and Agent leave both returned HTTP 200. The
+cleaned inline result contained no captured skills-context notice, and no second
+Work was created. The user reported that the overall conversation was okay and
+that TTS did not read Markdown aloud, but the final assistant transcript did
+contain some Markdown.
+
+| Live acceptance question | Status | Evidence / remaining observation |
+| --- | --- | --- |
+| Conversational completion quality | Pass by user report | The user described the overall result as okay. |
+| Speaking interruption and recovery | Not established | The check did not establish that completion arrived during Agent speech. |
+| Synthetic input transcript visibility | Partial | No raw envelope was reported, but the transcript was not independently captured; it did contain model-emitted Markdown. |
+| Recursive MCP behavior | Pass | The SQLite receipt set contained exactly one new Work after the completion turn. |
+| Plain assistant transcript | Failed, fix pending live retest | TTS remained natural, but the transcript contained Markdown. The static prompt now requires plain spoken sentences with no Markdown output; only offline prompt-contract tests cover that change so far. |
+
+The live check establishes the observations above only. A normal `/think`
+return still means only that Agora accepted the injected input; it is not
+generated-text, TTS-start, playback-complete, or user-heard evidence. A second
+live conversation is not started automatically.

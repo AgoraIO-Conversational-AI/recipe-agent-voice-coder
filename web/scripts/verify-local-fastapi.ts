@@ -1,4 +1,5 @@
-import { existsSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import nextConfig from '../next.config'
@@ -120,6 +121,7 @@ async function main() {
 
   const port = 43120 + Math.floor(Math.random() * 20)
   const backendUrl = `http://127.0.0.1:${port}`
+  const stateDirectory = mkdtempSync(path.join(tmpdir(), 'voice-coder-fastapi-'))
   const originalBackendUrl = process.env.AGENT_BACKEND_URL
   const originalLocalRuntime = process.env.VOICE_ACP_LOCAL_RUNTIME
   const originalNodeEnv = process.env.NODE_ENV
@@ -132,6 +134,7 @@ async function main() {
       AGORA_APP_ID: '0123456789abcdef0123456789abcdef',
       AGORA_APP_CERTIFICATE: 'fedcba9876543210fedcba9876543210',
       VOICE_ACP_LOCAL_RUNTIME: '1',
+      VOICE_ACP_STATE_DIR: stateDirectory,
       PORT: String(port),
     },
     stdout: 'ignore',
@@ -164,6 +167,19 @@ async function main() {
     assert(
       typeof data?.agent_uid === 'string' && data.agent_uid.length > 0,
       'GET /api/get_config should return an agent uid from FastAPI',
+    )
+
+    const agentResponse = await requestViaRewrite('/api/local/agent')
+    const agentBody = await getJson(agentResponse)
+    assert(agentResponse.status === 200, 'GET /api/local/agent should proxy to FastAPI')
+    const agentData = agentBody.data as Record<string, unknown> | undefined
+    assert(
+      (agentData?.selected_profile as Record<string, unknown> | undefined)?.id === 'codex',
+      'new local state should default to Codex',
+    )
+    assert(
+      Array.isArray(agentData?.profiles) && agentData.profiles.length === 2,
+      'GET /api/local/agent should list both supported Agent profiles',
     )
 
     const zeroUidResponse = await requestViaRewrite('/api/get_config?uid=0&channel=python-smoke')
@@ -265,6 +281,7 @@ async function main() {
 
     serverProcess.kill()
     await serverProcess.exited
+    rmSync(stateDirectory, { recursive: true, force: true })
 
     if (serverProcess.exitCode && serverProcess.exitCode !== 0) {
       const stderr = await new Response(serverProcess.stderr).text()

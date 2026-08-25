@@ -5,11 +5,15 @@ import nextConfig from '../next.config'
 import {
   browseWorkspace,
   clearWorkspace,
+  getAgentSettings,
+  getClaudeAuthStatus,
   getConfig,
   getLocalRuntime,
   getWorkspace,
+  selectAgentProfile,
   selectWorkspace,
   startAgent,
+  startClaudeSignIn,
   startLocalRuntime,
   stopAgent,
 } from '../src/services/api'
@@ -118,6 +122,21 @@ async function verifyRewriteContract() {
           rewrite.source === '/api/local/runtime' && rewrite.destination === 'http://localhost:8000/local/runtime',
       ),
       'next.config.ts should rewrite /api/local/runtime to the loopback backend',
+    )
+    assert(
+      rewrites.some(
+        (rewrite) =>
+          rewrite.source === '/api/local/agent' && rewrite.destination === 'http://localhost:8000/local/agent',
+      ),
+      'next.config.ts should rewrite /api/local/agent to the loopback backend',
+    )
+    assert(
+      rewrites.some(
+        (rewrite) =>
+          rewrite.source === '/api/local/auth/claude-code' &&
+          rewrite.destination === 'http://localhost:8000/local/auth/claude-code',
+      ),
+      'next.config.ts should rewrite Claude Code auth to the loopback backend',
     )
   } finally {
     if (originalBackendUrl) {
@@ -310,6 +329,53 @@ async function verifyApiClientRequests() {
       })
     }
 
+    if (url.pathname === '/api/local/agent') {
+      const profiles = [
+        {
+          id: 'codex',
+          label: 'Codex',
+          requires_primary_directory: true,
+          supports_additional_directories: false,
+        },
+        {
+          id: 'claude-code',
+          label: 'Claude Code',
+          requires_primary_directory: true,
+          supports_additional_directories: false,
+        },
+      ]
+      if (init?.method === 'GET') {
+        return Response.json({
+          code: 0,
+          data: { profiles, selected_profile: profiles[0] },
+          msg: 'success',
+        })
+      }
+      assert(init?.method === 'PUT', 'Agent selection should use PUT')
+      assert(getRequestBody(init).profile_id === 'claude-code', 'Agent selection should include only profile_id')
+      return Response.json({
+        code: 0,
+        data: {
+          settings: { profiles, selected_profile: profiles[1] },
+          runtime: {
+            state: 'configuration_required',
+            workspace: { state: 'unconfigured', profile: profiles[1], workspace: null },
+            error: null,
+          },
+        },
+        msg: 'success',
+      })
+    }
+
+    if (url.pathname === '/api/local/auth/claude-code') {
+      assert(init?.body === undefined, 'Claude auth must not accept a browser command')
+      return Response.json({
+        code: 0,
+        data: { state: init?.method === 'POST' ? 'waiting' : 'signed_in', error: null },
+        msg: 'success',
+      })
+    }
+
     return Response.json({ detail: `Unexpected request path: ${url.pathname}` }, { status: 404 })
   }) as typeof fetch
 
@@ -330,6 +396,17 @@ async function verifyApiClientRequests() {
     assert(runtime.state === 'ready', 'GET /api/local/runtime should return readiness')
     const startedRuntime = await startLocalRuntime()
     assert(startedRuntime.state === 'ready', 'POST /api/local/runtime should return readiness')
+    const agentSettings = await getAgentSettings()
+    assert(agentSettings.selected_profile.id === 'codex', 'GET /api/local/agent should return selected profile')
+    const selectedAgent = await selectAgentProfile('claude-code')
+    assert(
+      selectedAgent.settings.selected_profile.id === 'claude-code',
+      'PUT /api/local/agent should return selected profile',
+    )
+    const startedAuth = await startClaudeSignIn()
+    assert(startedAuth.state === 'waiting', 'POST Claude auth should start fixed terminal auth')
+    const authStatus = await getClaudeAuthStatus()
+    assert(authStatus.state === 'signed_in', 'GET Claude auth should return bounded status')
     const clearedWorkspace = await clearWorkspace()
     assert(clearedWorkspace.state === 'unconfigured', 'DELETE /api/local/workspace should clear the selection')
 
@@ -345,6 +422,10 @@ async function verifyApiClientRequests() {
           '/api/local/workspace',
           '/api/local/runtime',
           '/api/local/runtime',
+          '/api/local/agent',
+          '/api/local/agent',
+          '/api/local/auth/claude-code',
+          '/api/local/auth/claude-code',
           '/api/local/workspace',
         ]),
       'API client should call the unversioned /api paths',

@@ -1,11 +1,22 @@
 """Loopback Project Folder API tests with a fake native picker."""
 
+import asyncio
+
+import httpx
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from acp_runtime.acp_client import AcpSession
-from acp_runtime.readiness import LocalRuntimeCoordinator
-from acp_runtime.routes import build_runtime_router, build_workspace_router
+from acp_runtime.acp_client import AcpAuthenticationRequired, AcpSession
+from acp_runtime.readiness import LocalRuntimeCoordinator, LocalRuntimeStatus
+from acp_runtime.routes import (
+    build_agent_router,
+    build_claude_auth_router,
+    build_runtime_router,
+    build_workspace_router,
+)
+from acp_runtime.settings import AgentSettingsService, AgentSettingsStore
+from acp_runtime.claude_auth import ClaudeAuthStatus
 from acp_runtime.workspace import WorkspaceConfigStore, WorkspaceService
 from task_runtime.permissions import PermissionBroker
 from task_runtime.runtime import TaskRuntimeWorkspaceSwitchGuard
@@ -67,6 +78,84 @@ def make_app(tmp_path, switch_guard=None):
     return app, picker, runtime, fake_acp
 
 
+def make_agent_app(tmp_path, switch_guard=None):
+    settings = AgentSettingsService(AgentSettingsStore(tmp_path / "agent.json"))
+    service = WorkspaceService(
+        WorkspaceConfigStore(tmp_path / "workspace.json"),
+        profile_provider=lambda: settings.status().selected_profile,
+    )
+    fake_acp = FakeAcpClient()
+    runtime = LocalRuntimeCoordinator(service, fake_acp)
+    app = FastAPI()
+    app.include_router(
+        build_agent_router(
+            settings=settings,
+            workspace=service,
+            runtime=runtime,
+            switch_guard=switch_guard,
+        )
+    )
+    return app, settings, service, runtime, fake_acp
+
+
+@pytest.mark.anyio
+async def test_shared_setup_lock_serializes_concurrent_agent_switches(tmp_path):
+    settings = AgentSettingsService(AgentSettingsStore(tmp_path / "agent.json"))
+    workspace = WorkspaceService(
+        WorkspaceConfigStore(tmp_path / "workspace.json"),
+        profile_provider=lambda: settings.status().selected_profile,
+    )
+    project = tmp_path / "project"
+    project.mkdir()
+    workspace.select(str(project))
+    close_entered = asyncio.Event()
+    release_close = asyncio.Event()
+
+    class BlockingRuntime:
+        def __init__(self):
+            self.start_calls = 0
+
+        async def close(self):
+            close_entered.set()
+            await release_close.wait()
+
+        async def start(self):
+            self.start_calls += 1
+            return LocalRuntimeStatus(state="ready", workspace=workspace.status())
+
+    runtime = BlockingRuntime()
+    app = FastAPI()
+    app.include_router(
+        build_agent_router(
+            settings=settings,
+            workspace=workspace,
+            runtime=runtime,
+            mutation_lock=asyncio.Lock(),
+        )
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1"
+    ) as client:
+        select_claude = asyncio.create_task(
+            client.put("/local/agent", json={"profile_id": "claude-code"})
+        )
+        await close_entered.wait()
+        select_codex = asyncio.create_task(
+            client.put("/local/agent", json={"profile_id": "codex"})
+        )
+        await asyncio.sleep(0)
+        assert runtime.start_calls == 0
+        release_close.set()
+        claude_response, codex_response = await asyncio.gather(
+            select_claude, select_codex
+        )
+
+    assert claude_response.json()["data"]["settings"]["selected_profile"]["id"] == "claude-code"
+    assert codex_response.json()["data"]["settings"]["selected_profile"]["id"] == "codex"
+    assert settings.status().selected_profile.id == "codex"
+
+
 def wait_for_browse(client: TestClient, operation_id: str) -> dict:
     for _ in range(50):
         response = client.get(f"/local/workspace/browse/{operation_id}")
@@ -113,6 +202,127 @@ def test_workspace_routes_are_loopback_only(tmp_path):
             == 403
         )
         assert remote.delete("/local/workspace").status_code == 403
+
+
+def test_agent_settings_returns_supported_profiles_and_persists_selection(tmp_path):
+    app, _settings, _workspace, _runtime, _fake_acp = make_agent_app(tmp_path)
+
+    with TestClient(app) as client:
+        before = client.get("/local/agent")
+        selected = client.put(
+            "/local/agent", json={"profile_id": "claude-code"}
+        )
+        restored = client.get("/local/agent")
+
+    assert [item["id"] for item in before.json()["data"]["profiles"]] == [
+        "codex",
+        "claude-code",
+    ]
+    assert selected.status_code == 200
+    assert selected.json()["data"]["settings"]["selected_profile"]["id"] == (
+        "claude-code"
+    )
+    assert selected.json()["data"]["runtime"]["state"] == "configuration_required"
+    assert restored.json()["data"]["selected_profile"]["id"] == "claude-code"
+
+
+def test_agent_settings_routes_are_loopback_only(tmp_path):
+    app, _settings, _workspace, _runtime, _fake_acp = make_agent_app(tmp_path)
+
+    with TestClient(app, client=("203.0.113.10", 50000)) as remote:
+        assert remote.get("/local/agent").status_code == 403
+        assert (
+            remote.put("/local/agent", json={"profile_id": "claude-code"}).status_code
+            == 403
+        )
+
+
+def test_claude_auth_routes_expose_no_command_or_credentials():
+    class FakeClaudeAuth:
+        async def status(self):
+            return ClaudeAuthStatus(state="signed_out")
+
+        async def start(self):
+            return ClaudeAuthStatus(state="waiting")
+
+    app = FastAPI()
+    app.include_router(build_claude_auth_router(service=FakeClaudeAuth()))
+
+    with TestClient(app) as client:
+        before = client.get("/local/auth/claude-code")
+        started = client.post("/local/auth/claude-code")
+
+    assert before.json()["data"] == {"state": "signed_out", "error": None}
+    assert started.json()["data"] == {"state": "waiting", "error": None}
+    assert "command" not in str(started.json()).lower()
+
+
+def test_claude_auth_routes_are_loopback_only():
+    class FakeClaudeAuth:
+        async def status(self):
+            return ClaudeAuthStatus(state="signed_out")
+
+        async def start(self):
+            return ClaudeAuthStatus(state="waiting")
+
+    app = FastAPI()
+    app.include_router(build_claude_auth_router(service=FakeClaudeAuth()))
+
+    with TestClient(app, client=("203.0.113.10", 50000)) as remote:
+        assert remote.get("/local/auth/claude-code").status_code == 403
+        assert remote.post("/local/auth/claude-code").status_code == 403
+
+
+def test_failed_agent_start_keeps_selected_profile(tmp_path):
+    app, _settings, workspace, _runtime, fake_acp = make_agent_app(tmp_path)
+    project = tmp_path / "project"
+    project.mkdir()
+    workspace.select(str(project))
+    fake_acp.open_error = AcpAuthenticationRequired("claude-code")
+
+    with TestClient(app) as client:
+        selected = client.put(
+            "/local/agent", json={"profile_id": "claude-code"}
+        )
+        restored = client.get("/local/agent")
+
+    assert selected.status_code == 200
+    assert selected.json()["data"]["runtime"]["state"] == "authentication_required"
+    assert restored.json()["data"]["selected_profile"]["id"] == "claude-code"
+
+
+def test_unknown_agent_profile_fails_before_closing_runtime(tmp_path):
+    app, _settings, workspace, runtime, fake_acp = make_agent_app(tmp_path)
+    project = tmp_path / "project"
+    project.mkdir()
+    workspace.select(str(project))
+    import asyncio
+
+    asyncio.run(runtime.start())
+
+    with TestClient(app) as client:
+        rejected = client.put("/local/agent", json={"profile_id": "unknown"})
+
+    assert rejected.status_code == 400
+    assert fake_acp.close_calls == 0
+
+
+def test_switch_guard_blocks_agent_change_before_persistence_or_close(tmp_path):
+    guard = FakeWorkspaceSwitchGuard()
+    guard.reason = "Finish the current Work before changing local setup."
+    app, settings, _workspace, _runtime, fake_acp = make_agent_app(
+        tmp_path, switch_guard=guard
+    )
+
+    with TestClient(app) as client:
+        blocked = client.put(
+            "/local/agent", json={"profile_id": "claude-code"}
+        )
+
+    assert blocked.status_code == 409
+    assert settings.status().selected_profile.id == "codex"
+    assert fake_acp.close_calls == 0
+    assert guard.calls[-1][1] == "profile"
 
 
 def test_cross_site_browser_origin_is_rejected(tmp_path):
@@ -251,8 +461,7 @@ def test_nonterminal_work_blocks_workspace_replacement_and_clear(tmp_path):
             cleared = client.delete("/local/workspace")
 
         expected = (
-            "Wait for the current Work or permission decision before changing "
-            "Project Folder."
+            "Wait for the current Work or permission decision before changing local setup."
         )
         assert replaced.status_code == 409
         assert replaced.json()["detail"] == expected
@@ -309,9 +518,30 @@ def test_failed_activation_keeps_the_previous_workspace_selection(tmp_path):
     assert selected.status_code == 200
     assert failed.status_code == 503
     assert failed.json()["detail"] == (
-        "Could not start the local Codex runtime. Check the local runtime setup and retry."
+        "Could not start the selected coding agent. Check local setup and retry."
     )
     assert restored.json()["data"]["workspace"]["primary_directory"] == str(previous)
+
+
+def test_browse_activation_failure_preserves_actionable_runtime_reason(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    app, picker, _runtime, fake_acp = make_app(tmp_path)
+    picker.result = str(project)
+    fake_acp.open_error = RuntimeError("missing executable")
+
+    with TestClient(app) as client:
+        started = client.post("/local/workspace/browse")
+        failed = wait_for_browse(
+            client, started.json()["data"]["operation_id"]
+        )
+        restored = client.get("/local/workspace")
+
+    assert failed["state"] == "failed"
+    assert failed["error"] == (
+        "Could not start the selected coding agent. Check local setup and retry."
+    )
+    assert restored.json()["data"]["state"] == "unconfigured"
 
 
 def test_switch_guard_blocks_before_persistence_or_acp_session_replacement(tmp_path):
@@ -355,3 +585,17 @@ def test_switch_guard_blocks_clear_before_session_close_or_store_mutation(tmp_pa
     assert fake_acp.opened == [str(project)]
     assert fake_acp.close_calls == 0
     assert guard.calls[-1] == (str(project), "clear", None)
+
+
+def test_authentication_required_keeps_new_workspace_for_login_retry(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    app, _picker, _runtime, fake_acp = make_app(tmp_path)
+    fake_acp.open_error = AcpAuthenticationRequired("claude-code")
+
+    with TestClient(app) as client:
+        selected = client.put("/local/workspace", json={"path": str(project)})
+        restored = client.get("/local/workspace")
+
+    assert selected.status_code == 200
+    assert restored.json()["data"]["workspace"]["primary_directory"] == str(project)

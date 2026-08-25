@@ -1,4 +1,12 @@
-import type { BrowseOperationStatus, LocalRuntimeStatus, WorkspaceStatus } from '@/lib/workspace'
+import type {
+  AgentSelectionResult,
+  AgentSettingsStatus,
+  BrowseOperationStatus,
+  BrowseWorkspaceOutcome,
+  ClaudeAuthStatus,
+  LocalRuntimeStatus,
+  WorkspaceStatus,
+} from '@/lib/workspace'
 
 const API_BASE_URL = '/api'
 
@@ -100,21 +108,53 @@ export async function getWorkspace(): Promise<WorkspaceStatus> {
 export async function getLocalRuntime(): Promise<LocalRuntimeStatus> {
   return readLocalResponse<LocalRuntimeStatus>(
     await fetch(`${API_BASE_URL}/local/runtime`, { method: 'GET' }),
-    'Failed to get local Codex runtime readiness',
+    'Failed to get local coding agent readiness',
   )
 }
 
 export async function startLocalRuntime(): Promise<LocalRuntimeStatus> {
   return readLocalResponse<LocalRuntimeStatus>(
     await fetch(`${API_BASE_URL}/local/runtime`, { method: 'POST' }),
-    'Failed to start the local Codex runtime',
+    'Failed to start the local coding agent',
+  )
+}
+
+export async function getAgentSettings(): Promise<AgentSettingsStatus> {
+  return readLocalResponse<AgentSettingsStatus>(
+    await fetch(`${API_BASE_URL}/local/agent`, { method: 'GET' }),
+    'Failed to get local coding Agent settings',
+  )
+}
+
+export async function selectAgentProfile(profileId: string): Promise<AgentSelectionResult> {
+  return readLocalResponse<AgentSelectionResult>(
+    await fetch(`${API_BASE_URL}/local/agent`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_id: profileId }),
+    }),
+    'Could not select the local coding Agent',
+  )
+}
+
+export async function getClaudeAuthStatus(): Promise<ClaudeAuthStatus> {
+  return readLocalResponse<ClaudeAuthStatus>(
+    await fetch(`${API_BASE_URL}/local/auth/claude-code`, { method: 'GET' }),
+    'Could not check Claude Code sign-in',
+  )
+}
+
+export async function startClaudeSignIn(): Promise<ClaudeAuthStatus> {
+  return readLocalResponse<ClaudeAuthStatus>(
+    await fetch(`${API_BASE_URL}/local/auth/claude-code`, { method: 'POST' }),
+    'Could not open Claude Code sign-in',
   )
 }
 
 export async function browseWorkspace(options?: {
   pollIntervalMs?: number
   signal?: AbortSignal
-}): Promise<WorkspaceStatus> {
+}): Promise<BrowseWorkspaceOutcome> {
   const signal = options?.signal
   const pollIntervalMs = options?.pollIntervalMs ?? 300
   const started = await readLocalResponse<BrowseOperationStatus>(
@@ -138,14 +178,12 @@ export async function browseWorkspace(options?: {
   }
 
   if (operation.state === 'ready' && operation.workspace) {
-    return operation.workspace
+    return { state: 'ready', workspace: operation.workspace }
   }
-  throw new Error(
-    operation.error ||
-      (operation.state === 'cancelled'
-        ? 'Project Folder selection was cancelled'
-        : 'Could not select the Project Folder'),
-  )
+  if (operation.state === 'cancelled') {
+    return { state: 'cancelled' }
+  }
+  throw new Error(operation.error || 'Could not select the Project Folder')
 }
 
 function waitForPoll(milliseconds: number, signal?: AbortSignal): Promise<void> {

@@ -169,6 +169,7 @@ class FakeAcpAgentProcess:
     authentication_fails: bool = False
     session_fails_after_authentication: bool = False
     prompt_result: str | None = None
+    prompt_result_file: Path | None = None
     requests_permission: bool = False
     blocks_until_cancel: bool = False
 
@@ -183,7 +184,9 @@ class FakeAcpAgentProcess:
             command = (*command, "--authentication-fails")
         if self.session_fails_after_authentication:
             command = (*command, "--session-fails-after-authentication")
-        if self.prompt_result is not None:
+        if self.prompt_result_file is not None:
+            command = (*command, "--prompt-result-file", str(self.prompt_result_file))
+        elif self.prompt_result is not None:
             encoded = base64.urlsafe_b64encode(self.prompt_result.encode()).decode()
             command = (*command, "--prompt-result-base64", encoded)
         if self.requests_permission:
@@ -238,7 +241,10 @@ def main() -> None:
         "--session-fails-after-authentication" in sys.argv[2:]
     )
     prompt_result = None
-    if "--prompt-result-base64" in sys.argv[2:]:
+    if "--prompt-result-file" in sys.argv[2:]:
+        index = sys.argv.index("--prompt-result-file")
+        prompt_result = Path(sys.argv[index + 1]).read_text(encoding="utf-8")
+    elif "--prompt-result-base64" in sys.argv[2:]:
         index = sys.argv.index("--prompt-result-base64")
         prompt_result = base64.urlsafe_b64decode(sys.argv[index + 1]).decode()
     requests_permission = "--requests-permission" in sys.argv[2:]

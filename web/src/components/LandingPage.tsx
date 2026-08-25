@@ -7,13 +7,13 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LoadingSkeleton } from '@/components/LoadingSkeleton'
-import { ProjectFolderSettings } from '@/components/ProjectFolderSettings'
+import { LocalCodingSetup } from '@/components/LocalCodingSetup'
 import { QuickstartPreCallCard } from '@/components/QuickstartPreCallCard'
 import { ShareButton } from '@/components/share-button'
-import { getRuntimeStartBlock } from '@/lib/local-runtime'
-import type { LocalRuntimeStatus, WorkspaceStatus } from '@/lib/workspace'
+import { getPreCallLocalAction } from '@/lib/local-runtime'
+import type { AgentSettingsStatus, LocalRuntimeStatus, WorkspaceStatus } from '@/lib/workspace'
 import { workspaceNeedsConfiguration } from '@/lib/workspace'
-import { getConfig, getWorkspace, startAgent, startLocalRuntime, stopAgent } from '@/services/api'
+import { getAgentSettings, getConfig, getWorkspace, startAgent, startLocalRuntime, stopAgent } from '@/services/api'
 import type { AgoraRenewalTokens, AgoraTokenData } from '@/types/conversation'
 
 const ConversationComponent = dynamic(() => import('@/components/ConversationComponent'), {
@@ -81,9 +81,13 @@ export default function LandingPage() {
   const [error, setError] = useState<string | null>(null)
   const [agentJoinError, setAgentJoinError] = useState(false)
   const [workspaceStatus, setWorkspaceStatus] = useState<WorkspaceStatus | null>(null)
+  const [agentSettings, setAgentSettings] = useState<AgentSettingsStatus | null>(null)
   const [workspaceError, setWorkspaceError] = useState<string | null>(null)
   const [runtimeStatus, setRuntimeStatus] = useState<LocalRuntimeStatus | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [localSetupChecking, setLocalSetupChecking] = useState(localRuntimeEnabled)
+  const startConversationRef = useRef<HTMLButtonElement>(null)
+  const localAction = getPreCallLocalAction(localRuntimeEnabled, workspaceStatus, runtimeStatus, localSetupChecking)
 
   useEffect(() => {
     import('agora-rtc-react').catch(() => {})
@@ -95,8 +99,9 @@ export default function LandingPage() {
     let cancelled = false
     const loadReadiness = async () => {
       try {
-        const status = await getWorkspace()
+        const [settings, status] = await Promise.all([getAgentSettings(), getWorkspace()])
         if (cancelled) return
+        setAgentSettings(settings)
         setWorkspaceStatus(status)
         setWorkspaceError(null)
         if (workspaceNeedsConfiguration(status)) {
@@ -107,13 +112,23 @@ export default function LandingPage() {
         const runtime = await startLocalRuntime()
         if (cancelled) return
         setRuntimeStatus(runtime)
-        setError(getRuntimeStartBlock(status, runtime))
+        if (runtime.state === 'ready') {
+          setWorkspaceError(null)
+          setError(null)
+        } else if (runtime.state === 'authentication_required') {
+          setWorkspaceError(null)
+          setSettingsOpen(true)
+        } else {
+          setWorkspaceError(runtime.error ?? 'Could not finish local setup. Try again.')
+          setSettingsOpen(true)
+        }
       } catch (nextError) {
         if (cancelled) return
-        const message = nextError instanceof Error ? nextError.message : 'Could not load local Codex runtime readiness'
+        const message = nextError instanceof Error ? nextError.message : 'Could not load local coding Agent readiness'
         setWorkspaceError(message)
-        setError(message)
         setSettingsOpen(true)
+      } finally {
+        if (!cancelled) setLocalSetupChecking(false)
       }
     }
     void loadReadiness()
@@ -124,15 +139,8 @@ export default function LandingPage() {
 
   const handleStartConversation = async () => {
     if (localRuntimeEnabled) {
-      const runtimeBlock = getRuntimeStartBlock(workspaceStatus, runtimeStatus)
-      if (runtimeBlock) {
-        setError(runtimeBlock)
-        if (!workspaceStatus || workspaceNeedsConfiguration(workspaceStatus)) {
-          setSettingsOpen(true)
-        }
-        return
-      }
-      if (!workspaceStatus || workspaceNeedsConfiguration(workspaceStatus)) {
+      if (localAction.kind === 'checking') return
+      if (localAction.kind === 'configure') {
         setSettingsOpen(true)
         return
       }
@@ -239,6 +247,10 @@ export default function LandingPage() {
             <QuickstartPreCallCard
               isLoading={isLoading}
               error={error}
+              primaryLabel={localAction.label}
+              primaryDisabled={localAction.disabled}
+              localSetupReady={localAction.ready}
+              primaryButtonRef={startConversationRef}
               onStartConversation={handleStartConversation}
               onOpenSettings={localRuntimeEnabled ? () => setSettingsOpen(true) : undefined}
             />
@@ -298,19 +310,27 @@ export default function LandingPage() {
       </footer>
 
       {localRuntimeEnabled ? (
-        <ProjectFolderSettings
+        <LocalCodingSetup
           open={settingsOpen}
+          agentSettings={agentSettings}
           status={workspaceStatus}
           runtimeStatus={runtimeStatus}
           initialError={workspaceError}
+          onAgentSettingsChange={setAgentSettings}
           onStatusChange={(status) => {
             setWorkspaceStatus(status)
             setWorkspaceError(null)
-            if (!workspaceNeedsConfiguration(status)) setSettingsOpen(false)
+            setError(null)
           }}
           onRuntimeStatusChange={setRuntimeStatus}
+          onReady={() => {
+            setWorkspaceError(null)
+            setError(null)
+            setSettingsOpen(false)
+            requestAnimationFrame(() => startConversationRef.current?.focus())
+          }}
           onClose={() => {
-            if (!getRuntimeStartBlock(workspaceStatus, runtimeStatus)) {
+            if (localAction.kind === 'start') {
               setSettingsOpen(false)
             }
           }}

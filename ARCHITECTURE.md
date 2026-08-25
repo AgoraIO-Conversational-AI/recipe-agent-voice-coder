@@ -20,9 +20,9 @@ Agora Cloud Services
 - `server` owns the actual token generation and agent start/stop logic
 - this is the mode used by `bun run dev`
 
-## Local Codex Foundation
+## Local Coding Agent Foundation
 
-`bun run dev:codex` is a separate local-development entry point. It starts
+`bun run dev:local` is a separate local-development entry point. It starts
 FastAPI and Next on loopback interfaces and does not start an Agora agent until
 the user presses **Start conversation**. It also does not start ngrok.
 Its preflight checks the certified macOS Apple Silicon platform, Bun/Node/Python,
@@ -38,9 +38,18 @@ Browser Settings gate
   -> TaskRuntime -> SQLite WorkStore + one FIFO ACP prompt worker
 ```
 
-The browser opens Settings automatically when the Codex profile has no valid
-Project Folder. The native macOS picker is invoked by the loopback backend, not
-the browser. The selected resolved directory is persisted in
+The browser opens Local Coding Setup automatically when no valid Project Folder
+exists. Agent selection is remembered independently in `agent-settings.json`;
+the Project Folder remains in `workspace.json`. The native macOS picker is
+invoked by the loopback backend, not the browser. Setup uses a native modal plus focus guards, so keyboard focus
+cannot reach the pre-call page while setup is blocking. Picker cancellation
+returns to the Settings gate without an error. A successful selection activates ACP, closes Settings automatically,
+and focuses **Start Conversation**; bounded activation failures remain in
+Settings with a retry action instead of being collapsed into a folder-selection
+error. `LandingPage` owns the initial checking gate and focus handoff, while
+`LocalCodingSetup` owns Agent choice, folder selection, authentication retry,
+cancellation, and failure presentation.
+The selected resolved directory is persisted in
 `~/Library/Application Support/Agora Voice ACP/workspace.json` by default (or
 under `VOICE_ACP_STATE_DIR`). The Project Folder is session context, not a
 filesystem sandbox.
@@ -56,15 +65,18 @@ exists. The local web flow explicitly activates saved state with
 publishes `/api/local/*` rewrites only for an explicit development opt-in, a
 loopback backend URL, and a non-production Next process.
 
-`CodexAcpClient` owns the child-process boundary. Its default command is
-`npx -y @agentclientprotocol/codex-acp@1.1.7` with `INITIAL_AGENT_MODE=agent`;
-it initializes ACP and first tries session creation with reusable credentials.
-Only a typed authentication-required response triggers the advertised ChatGPT
-method and one session-creation retry. `CODEX_PATH`, `CODEX_API_KEY`, and
-`OPENAI_API_KEY` are advanced child-environment pass-through values. A custom
-Compatible ACP command is accepted only as a JSON argv array. None of these
-paths changes `INITIAL_AGENT_MODE=agent`, selects full access, or logs command
-environments.
+`LocalAcpClient` owns the shared ACP child-process boundary. `AgentDefinition`
+profiles select either `@agentclientprotocol/codex-acp@1.1.7` or
+`@agentclientprotocol/claude-agent-acp@0.70.0`; both commands run through `npx`
+without a shell. Codex initializes with `INITIAL_AGENT_MODE=agent`, tries
+reusable credentials first, and handles an ACP-advertised ChatGPT method.
+Claude Code reuses existing authentication; a typed authentication-required
+state lets loopback-only `ClaudeAuthService` open one macOS Terminal with a
+fixed official login command and poll a fixed status command for up to 120
+seconds. The browser cannot provide commands or receive credential output.
+Environment pass-through is allowlisted per profile. A custom compatible ACP
+command is accepted only as a JSON argv array and changes neither the selected
+identity nor its authentication behavior.
 
 The Task Runtime Core starts only in the opted-in local app. It marks leftover
 nonterminal Work failed before accepting new Work, persists acceptance before
@@ -85,6 +97,9 @@ ID, Workspace ID, and Workspace generation. Agent stop revokes it first. The
 MCP listener exposes only four Work tools and is never mounted into the
 lifecycle FastAPI app. ngrok starts lazily when an Agent is prepared after ACP
 readiness and remains in the launcher's process group for forced cleanup.
+The Local Launcher Supervisor converts the first terminal shutdown request to
+child SIGTERM so Python and web children exit quietly, while its own status
+continues to distinguish SIGINT (`130`), SIGTERM (`143`), and SIGHUP (`129`).
 
 Agora may initialize and discover MCP tools before Agent creation returns the
 real Agent ID. The prepared bearer permits only that side-effect-free handshake;
@@ -96,14 +111,26 @@ natural-language objectives through `start_work` without exposing the path or
 enumerating task categories; the MCP tool description carries the same
 contract.
 
-After Task Runtime commits completed or failed targeted Work, an in-process
-delivery coordinator revalidates the exact originating Agent and Workspace,
-claims the durable pending result, and calls that Agent session's Speak API
-with APPEND priority. Normal API return records `accepted`; a submission error
-records `delivery_unknown` and is not retried. Missing/stopped sessions and
-Workspace mismatch stay `pending_delivery`, with `get_work_status` as the
-fallback. SSE/UI, proactive permission announcements, playback receipts,
-batching, and reconnect replay remain separate follow-ons.
+The current experimental completion prototype has completed one partial live
+Agora check: delivery and conversational output worked, but the assistant
+transcript contained Markdown while TTS did not read it. The static completion
+rule now requires plain spoken sentences with no Markdown output; that change
+and interruption recovery remain pending live acceptance. After Task Runtime
+commits targeted Work, an in-process delivery coordinator
+revalidates the exact originating Agent and Workspace and claims the durable
+pending result. Completed Work stores a cleaned full inline result plus the
+fixed fallback `The work is done.`; the coordinator creates an at-most-8-KiB
+`LOCAL_WORK_COMPLETED` JSON envelope and calls that Agent session's Think API
+with listening `inject`, thinking/speaking `interrupt`, and user-interruptible
+output. The current Managed LLM converts the data into a short response using
+the live conversation and is instructed to emit plain spoken text without
+Markdown formatting. A normal return records input `accepted`, not generated
+text or playback. Only a definite HTTP rejection may use one APPEND Speak
+fallback. Ambiguous submission records `delivery_unknown` and is not retried.
+Failed Work continues through bounded APPEND speech, cancelled Work stays
+silent, and missing/stopped sessions or Workspace mismatch stay
+`pending_delivery`. SSE/UI, playback receipts, batching, and reconnect replay
+remain separate follow-ons.
 
 ## Shared Conversation Flow
 
@@ -159,6 +186,10 @@ the reusable three-route quickstart contract:
 | `/local/workspace` | DELETE | Close local ACP and clear the saved selection |
 | `/local/workspace/browse` | POST | Start one backend-owned native macOS folder picker operation and return `202` |
 | `/local/workspace/browse/{operation_id}` | GET | Poll the current picker operation until ready, cancelled, or failed |
+| `/local/agent` | GET | Return available Agent profiles and the remembered selection |
+| `/local/agent` | PUT | Switch the Agent and activate it against the current Project Folder |
+| `/local/auth/claude-code` | GET | Return bounded Claude Code authentication readiness |
+| `/local/auth/claude-code` | POST | Open or reuse the single fixed macOS Terminal login flow |
 | `/local/runtime` | GET | Return safe local ACP readiness state without starting ACP |
 | `/local/runtime` | POST | Explicitly activate ACP for a valid saved Workspace |
 
@@ -189,10 +220,11 @@ The interactive runner owns both Uvicorn listeners, rotates the active scenario 
 
 ## Verification Boundary
 
-The offline suite verifies fake ACP protocol behavior, workspace persistence,
+The offline suite verifies both profiles, fake ACP protocol behavior, separate
+Agent and Workspace persistence,
 loopback guards, rewrite contracts, fake FastAPI proxying, and web build output.
 It does not prove that `npx` can download/run the pinned ACP package, that a
-browser can complete ChatGPT authentication, that the native picker works on a
+browser can complete provider authentication, that the native picker works on a
 developer machine, or that an Agora conversation/ngrok ingress succeeds. Run
 those live/manual checks only with the appropriate credentials and authorization.
 

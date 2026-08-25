@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-backend_command="${LOCAL_BACKEND_COMMAND:-bun run dev:backend:codex}"
-frontend_command="${LOCAL_FRONTEND_COMMAND:-bun run dev:frontend:codex}"
+backend_command="${LOCAL_BACKEND_COMMAND:-bun run dev:backend:local}"
+frontend_command="${LOCAL_FRONTEND_COMMAND:-bun run dev:frontend:local}"
 
 fail_usage() {
-  echo "Usage: bun run dev:codex -- [--workspace /absolute/path] [--acp-command-json JSON_ARRAY]" >&2
+  echo "Usage: bun run dev:local -- [--workspace /absolute/path] [--acp-command-json JSON_ARRAY]" >&2
   exit 2
 }
 

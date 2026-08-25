@@ -18,7 +18,7 @@ Versioned offline tests and explicitly authorized live observations used to supp
 
 ## Agent Profile
 
-A backend-neutral declaration of an ACP Agent's configuration needs and supported Workspace capabilities. The v0.1 Codex profile requires one primary directory and supports no additional directories.
+A backend-neutral declaration of an ACP Agent's launch, authentication, output-cleanup, and Workspace capabilities. The v0.1 Codex and Claude Code profiles each require one primary directory and support no additional directories.
 
 ## Workspace Scope
 
@@ -28,9 +28,9 @@ The session context bound to Work and an ACP session. It contains a stable local
 
 The user-facing name for the Workspace Scope's primary directory: where the Agent works and resolves relative paths. It is not the only folder the Agent can access and is not a Recipe-owned sandbox.
 
-## Configuration Gate
+## Local Coding Setup
 
-The blocking pre-ready state shown when the active Agent Profile requires a Project Folder and no valid selection exists. Settings remains available after the gate is cleared so the selection can be changed safely.
+The blocking pre-ready state shown when the selected Agent needs authentication or a Project Folder is missing. It remains available after readiness so Agent and folder can be changed safely.
 
 ## Local Launcher Supervisor
 

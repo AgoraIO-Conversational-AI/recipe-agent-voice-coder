@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test'
 
-import { getRuntimeStartBlock } from './local-runtime'
+import { getPreCallLocalAction } from './local-runtime'
 import type { LocalRuntimeStatus, WorkspaceStatus } from './workspace'
-import { selectWorkspaceWithRuntimeRefresh } from './workspace-selection'
+import { applyBrowseOutcomeWithRuntimeRefresh, selectWorkspaceWithRuntimeRefresh } from './workspace-selection'
 
 const workspace: WorkspaceStatus = {
   state: 'ready',
@@ -36,8 +36,44 @@ test('failed replacement invalidates stale ready runtime before Start Conversati
   ).rejects.toThrow('missing executable')
 
   expect(published).toEqual([null, failedRuntime])
-  const block = getRuntimeStartBlock(workspace, published.at(-1) ?? null)
-  if (!block) agoraCalls += 1
-  expect(block).toContain('missing executable')
+  const action = getPreCallLocalAction(true, workspace, published.at(-1) ?? null, false)
+  if (action.kind === 'start') agoraCalls += 1
+  expect(action.kind).toBe('configure')
   expect(agoraCalls).toBe(0)
+})
+
+test('cancelled browse is silent and does not refresh runtime', async () => {
+  let runtimeCalls = 0
+  const published: Array<LocalRuntimeStatus | null> = []
+
+  const outcome = await applyBrowseOutcomeWithRuntimeRefresh(
+    async () => ({ state: 'cancelled' }),
+    async () => {
+      runtimeCalls += 1
+      throw new Error('must not run')
+    },
+    (runtime) => published.push(runtime),
+  )
+
+  expect(outcome).toEqual({ state: 'cancelled' })
+  expect(runtimeCalls).toBe(0)
+  expect(published).toEqual([])
+})
+
+test('authentication-required keeps the selected folder for sign-in retry', async () => {
+  const published: Array<LocalRuntimeStatus | null> = []
+  const authRequired: LocalRuntimeStatus = {
+    ...failedRuntime,
+    state: 'authentication_required',
+    error: 'Sign in to Claude Code, then retry.',
+  }
+
+  const selected = await selectWorkspaceWithRuntimeRefresh(
+    async () => workspace,
+    async () => authRequired,
+    (runtime) => published.push(runtime),
+  )
+
+  expect(selected).toEqual({ workspace, runtime: authRequired })
+  expect(published).toEqual([null, authRequired])
 })

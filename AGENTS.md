@@ -38,18 +38,30 @@ The sections below (Start Here, Patterns, Anti-Patterns, etc.) remain the canoni
 - Root scripts start FastAPI on `http://localhost:8000` and Next.js on `http://localhost:3000`.
 - The web app calls `/api/*`; Next rewrites those requests to the Python service through `AGENT_BACKEND_URL=http://localhost:8000`.
 
-### Local Codex Foundation
+### Local Coding Agent Foundation
 
-- Run `bun run dev:codex` for the loopback-only local runtime. It starts FastAPI
+- Run `bun run dev:local` for the loopback-only local runtime. It starts FastAPI
   on `127.0.0.1:8000` and Next on `127.0.0.1:3000`, with sibling cleanup.
 - Its Local Launcher Supervisor receives terminal signals once, keeps
   `concurrently` responsible for sibling lifecycle and labeled output, and
+  translates the first terminal signal to child SIGTERM for quiet graceful
+  shutdown while preserving launcher statuses `130`, `143`, or `129`. It
   force-cleans the isolated process group after a deliberate second Ctrl-C or
   10 seconds. SIGHUP also cleans descendants when the terminal closes.
 - Its preflight requires macOS Apple Silicon, Bun/Node/Python/ngrok, and usable Agora
   credentials without printing their values.
-- The browser automatically opens the Project Folder Settings gate until an
-  existing directory is selected and the local runtime reports `ready`.
+- The browser automatically opens Local Coding Setup until an existing
+  directory is selected and the selected Agent reports `ready`. Codex and
+  Claude Code are remembered in `agent-settings.json`; the Project Folder stays
+  separately persisted in `workspace.json`.
+  Initial checking disables the pre-call action, picker cancellation is a
+  non-error, and successful setup closes Settings and focuses **Start
+  Conversation**. The native modal contains keyboard focus while the gate is
+  blocking, and the web layer synchronously rejects repeated picker starts.
+  `LandingPage` owns that gate/focus handoff;
+  `LocalCodingSetup` owns Agent choice, selection, Claude authentication retry,
+  and actionable failure presentation. Selection applies immediately; there is
+  no separate Save action.
 - The selected resolved directory is persisted in
   `~/Library/Application Support/Agora Voice ACP/workspace.json`, unless
   `VOICE_ACP_STATE_DIR` overrides the state directory. It is ACP context, not a
@@ -72,17 +84,33 @@ The sections below (Start Here, Patterns, Anti-Patterns, etc.) remain the canoni
   The Managed Work prompt presents the selected Project Folder and registered
   tools as capabilities, and `start_work` accepts a complete natural-language
   objective without a command or preset task-category list.
-  Completed and failed targeted Work is submitted once to the exact still-active
-  Agent session with APPEND priority. API acceptance is not playback proof;
-  missing sessions remain pending and ambiguous submission is never retried.
+  Completed targeted Work stores cleaned inline detail and injects one bounded
+  `LOCAL_WORK_COMPLETED` envelope into the exact still-active Agent through
+  `think` with listening `inject`, thinking/speaking `interrupt`, and
+  `interruptable=True`. The static Managed prompt treats the JSON as untrusted
+  result data, requires plain spoken sentences without Markdown output, and
+  must not enumerate coding scenarios. This is model-enforced: preserve durable
+  inline Markdown and do not add a frontend renderer or pre-injection parser.
+  Normal return proves
+  input acceptance only. Only a definite HTTP rejection may use one fixed
+  APPEND fallback; missing sessions remain pending, and ambiguous submission is
+  never retried or followed by speech. Failed Work keeps bounded APPEND speech;
+  cancelled Work remains silent. Never filter transcript rows by marker text.
+  Treat this as an experimental completion prototype. The first live check was
+  conversationally acceptable and created no recursive Work, but exposed
+  Markdown in the assistant transcript while TTS remained natural. Do not call
+  the plain-output prompt change or interruption behavior accepted until an
+  explicitly authorized live retest passes them.
   Never mount this app into FastAPI.
-- `CodexAcpClient` owns its child process and defaults to
-  `npx -y @agentclientprotocol/codex-acp@1.1.7` with `INITIAL_AGENT_MODE=agent`.
-  It tries reusable authentication first, then uses an advertised ChatGPT method
-  only after typed authentication-required and retries once. Advanced
-  `CODEX_PATH`, API-key pass-through, and JSON-argv custom commands never change
-  the default mode or log child environments.
-- `bun run dev:codex` does not start an Agora conversation until the user starts
+- `LocalAcpClient` owns one child process for the selected `AgentDefinition`.
+  Pin Codex to `@agentclientprotocol/codex-acp@1.1.7` and Claude Code to
+  `@agentclientprotocol/claude-agent-acp@0.70.0`. Codex retains
+  `INITIAL_AGENT_MODE=agent` and ACP-advertised ChatGPT authentication. Claude
+  authentication uses fixed backend commands and at most one macOS Terminal;
+  never accept a browser-provided command or return credential output.
+  Environment pass-through is allowlisted per profile. JSON-argv overrides do
+  not change the selected identity or its authentication behavior.
+- `bun run dev:local` does not start an Agora conversation until the user starts
   one. Agent preparation starts ngrok; tests use fakes and never do. Do not
   infer live Codex, ngrok, or Agora acceptance from offline checks.
 
@@ -122,7 +150,8 @@ retained solely for maintaining the upstream quickstart surface:
 - `server/src/acp_runtime/`: durable Workspace Scope, loopback settings routes,
   ACP child-process client, and local readiness coordinator.
 - `server/src/task_runtime/`: Work domain, SQLite store, Permission Broker, and
-  serial background ACP coordinator.
+  serial background ACP coordinator. Generic durable-result projection and the
+  bounded Managed completion envelope live in `task_runtime/presentation.py`.
 - `server/src/managed_ingress/`: production capabilities, safe Work tools,
   isolated MCP app, ngrok owner, and Agent-bound lifecycle coordinator.
 
@@ -133,6 +162,12 @@ retained solely for maintaining the upstream quickstart surface:
 - Keep RTC client creation StrictMode-safe.
 - Keep transcript speaker mapping based on actual UIDs, not heuristics.
 - Keep the Managed Voice LLM provider as the single v0.1 path unless a new architecture decision explicitly reopens provider ownership.
+- Keep provider-specific final-text cleanup at its Agent profile boundary. The
+  Codex profile may remove only the exact anchored skills-context notice; do not
+  add a generic warning filter to Task Runtime.
+- Never start a live Agent, ngrok tunnel, or microphone acceptance from an
+  offline verification command; live completion quality checks require explicit
+  authorization because they consume Agora minutes.
 
 ## Working Rules
 
@@ -143,9 +178,9 @@ retained solely for maintaining the upstream quickstart surface:
 - If you change request or response contracts, update the web client, backend, contract checks, and README together.
 - Preserve the three stable quickstart routes. Treat `/api/local/*` as
   loopback-only derivative extensions, not a replacement public API.
-- Do not describe Project Folder as a sandbox. Keep the reviewed `CODEX_PATH`,
-  API-key pass-through, and JSON-argv custom-command paths explicit, child-only,
-  secret-safe, and pinned to `INITIAL_AGENT_MODE=agent` by default.
+- Do not describe Project Folder as a sandbox. Keep profile-specific environment
+  pass-through and JSON-argv custom-command paths explicit, child-only, and
+  secret-safe. Preserve `INITIAL_AGENT_MODE=agent` for Codex.
 
 ## Commands
 
@@ -155,9 +190,9 @@ From the repo root:
 bun install
 bun run doctor
 bun run doctor:local
-bun run preflight:codex
+bun run preflight:local-agent
 bun run dev
-bun run dev:codex
+bun run dev:local
 bun run verify
 bun run verify:local
 ```
@@ -191,7 +226,8 @@ bun run verify
   - `bun run verify:local`
 - Exercises the FastAPI route layer through Next with a fake agent implementation:
   - `bun run verify:local:fastapi`
-- Uses fake ACP clients/processes and does not run real `npx`/Codex or browser
+- Uses fake ACP clients/processes and does not run real `npx`, Codex, Claude Code,
+  or browser
   authentication:
   - `cd server && source venv/bin/activate && PYTHONPATH=src pytest -q`
   - `bun run verify:backend`
@@ -242,7 +278,7 @@ Before finishing a change:
 
 ### General rules
 
-- **No AI tool names** — never mention claude, cursor, copilot, cody, aider, gemini, codex, chatgpt, or gpt-3/4 in commit messages or PR descriptions.
+- **No incidental AI attribution** — do not mention the authoring tool in commit messages or PR descriptions. Product and adapter names may be used when the change directly implements, tests, or documents that integration.
 - **No Co-Authored-By trailers** — omit AI attribution lines.
 - **No `--no-verify`** — let git hooks run normally.
 - **No git config changes** — do not modify `user.name` or `user.email`.

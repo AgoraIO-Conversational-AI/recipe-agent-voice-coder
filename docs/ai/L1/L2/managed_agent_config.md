@@ -73,13 +73,45 @@ agent_id = await session.start()
 return {"agent_id": agent_id, "channel_name": channel_name, "status": "started"}
 ```
 
-The exact field names track `agora-agents`. The requirement is unpinned in `server/requirements.txt`, so re-verify field names after upgrades.
+The exact field names track `agora-agents`. The supported range is
+`agora-agents>=2.6.0,<3`; 2.6 is required for `AsyncAgentSession.think`.
+Re-verify field names after upgrades within that range.
 
 ## Editing Each Surface
 
 ### Change the prompt
 
-Edit the `ADA_PROMPT` string constant at the top of `agent.py`. Keep it concise — long prompts amplify LLM latency.
+Edit `ADA_PROMPT` for the stable quickstart or `VOICE_WORK_PROMPT` for the local
+Work-capable Managed Agent. Keep prompts concise — long prompts amplify LLM
+latency. `VOICE_WORK_PROMPT` contains one generic `LOCAL_WORK_COMPLETED` trust
+and spoken-output rule. It requires plain spoken sentences with no Markdown
+output; do not add anticipated coding categories or examples. Preserve durable
+inline Markdown instead of adding a parser or frontend renderer.
+
+### Change completed Work re-entry
+
+`Agent.think_work_result` owns the exact session call:
+
+```python
+await session.think(
+    completion_envelope,
+    on_listening_action="inject",
+    on_thinking_action="interrupt",
+    on_speaking_action="interrupt",
+    interruptable=True,
+    metadata={"event": "local_work_completed", "work_id": work_id},
+)
+```
+
+Agora Think has no APPEND action and returns no generated text or playback
+receipt. `accepted` therefore means input acceptance only. Do not change these
+actions independently of the delivery state machine, add a dynamic
+`update -> think -> restore` sequence, or fall back after an ambiguous call.
+The first live check was conversationally acceptable and did not create
+recursive Work, but its assistant transcript contained Markdown while TTS did
+not read it. The new plain-output sentence remains pending live retest, as does
+interruption recovery; do not describe this configuration as stable based on
+offline tests alone.
 
 ### Change the greeting
 

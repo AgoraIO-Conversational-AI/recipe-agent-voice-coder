@@ -29,7 +29,7 @@ CORS middleware: `allow_origins=["*"]`, `allow_credentials=True`.
 | `/api/startAgent`  | `${AGENT_BACKEND_URL}/startAgent`             |
 | `/api/stopAgent`   | `${AGENT_BACKEND_URL}/stopAgent`              |
 
-The local Codex derivative appends these loopback-only extension rewrites. They
+The local coding-Agent derivative appends these loopback-only extension rewrites. They
 do not alter the stable quickstart routes above. They register only when
 `VOICE_ACP_LOCAL_RUNTIME=1`, the backend URL is loopback, and Next is not in
 production mode:
@@ -39,6 +39,8 @@ production mode:
 | `/api/local/workspace` | `${AGENT_BACKEND_URL}/local/workspace` | GET, PUT, DELETE |
 | `/api/local/workspace/browse` | `${AGENT_BACKEND_URL}/local/workspace/browse` | POST |
 | `/api/local/workspace/browse/:operationId` | `${AGENT_BACKEND_URL}/local/workspace/browse/:operationId` | GET |
+| `/api/local/agent` | `${AGENT_BACKEND_URL}/local/agent` | GET, PUT |
+| `/api/local/auth/claude-code` | `${AGENT_BACKEND_URL}/local/auth/claude-code` | GET, POST |
 | `/api/local/runtime` | `${AGENT_BACKEND_URL}/local/runtime` | GET, POST |
 
 `verify-api-contracts.ts` asserts that no `web/app/api/**/route.ts` files exist. Adding one would create a competing handler in front of the rewrite — don't.
@@ -52,7 +54,7 @@ production mode:
 | Next build             | `AGENT_BACKEND_URL`                       |
 | Browser                | `NEXT_PUBLIC_AGENT_UID` (optional)        |
 | Local launcher/internal | `VOICE_ACP_LOCAL_RUNTIME`, `NEXT_PUBLIC_LOCAL_RUNTIME_ENABLED`, `VOICE_ACP_WORKSPACE` |
-| ACP child advanced     | `CODEX_PATH`, `CODEX_API_KEY`, `OPENAI_API_KEY` |
+| ACP child advanced     | `CODEX_PATH`, `CODEX_API_KEY`, `OPENAI_API_KEY`, `CLAUDE_CONFIG_DIR`, `ANTHROPIC_API_KEY` |
 | Compatible ACP command | `VOICE_ACP_COMMAND_JSON` (JSON argv array) |
 | Managed ingress ports  | `VOICE_ACP_MCP_PORT` (default `8001`); ngrok uses its default loopback inspection API on `4040` |
 
@@ -68,28 +70,37 @@ Successful `/local/*` responses use
 | --- | --- | --- |
 | `403` | Caller is not loopback | `{ "detail": "..." }` |
 | `400` | `PUT` path is not an absolute existing directory | `{ "detail": "Project Folder must be an absolute existing directory" }` |
-| `409` | Picker cancellation or a Workspace switch guard conflict | `{ "detail": "..." }` |
+| `409` | A picker is already active or a Workspace switch guard blocks replacement | `{ "detail": "..." }` |
 | `503` | Candidate folder could not activate the local ACP runtime | `{ "detail": "..." }` |
 
 FastAPI also returns its normal validation error body for an invalid request
 shape. Clients must not expect a success envelope on non-2xx responses.
 
-`WorkspaceStatus` contains `state` (`unconfigured`, `ready`, or `invalid`), a
-Codex `profile`, and an optional workspace `{ id, label, primary_directory }`.
-The profile requires one primary directory and supports no additional directories.
+`WorkspaceStatus` contains `state` (`unconfigured`, `ready`, or `invalid`), the
+selected Agent `profile`, and an optional workspace `{ id, label,
+primary_directory }`. Both profiles require one primary directory and support
+no additional directories. `AgentSettingsStatus` lists `codex` and
+`claude-code`; `PUT /local/agent` persists and activates the requested profile.
+Switching is rejected while Work or a permission is active.
 `PUT` accepts `{ "path": "..." }`; the path must resolve to an existing
 absolute directory. `GET /local/runtime` is read-only; `POST /local/runtime`
 explicitly activates a valid saved Workspace. `LocalRuntimeStatus` uses
 `configuration_required`, `starting`, `authentication_required`, `ready`, or
 `failed`, plus `workspace` and an optional safe `error`.
 
-The default ACP command is pinned to `npx -y @agentclientprotocol/codex-acp@1.1.7`
-with `INITIAL_AGENT_MODE=agent`. It tries `new_session` with reusable credentials
-first. Only typed authentication-required triggers the advertised `ChatGPT`
-method and one retry. `CODEX_PATH`, `CODEX_API_KEY`, and `OPENAI_API_KEY` are
-advanced child pass-through values; custom ACP is a JSON argv array. Secret
-values and child environments are not logged, and full access is never selected
-automatically.
+The asynchronous browse operation reports `picking`, `ready`, `cancelled`, or
+`failed` inside successful envelopes. The browser helper maps terminal
+`cancelled` to the typed non-error `{ state: "cancelled" }` outcome. Terminal
+`failed` preserves the bounded Workspace validation, switch-guard, or runtime
+readiness reason and rejects in the browser; it never returns raw child or
+protocol errors.
+
+Profile commands are pinned to Codex ACP `1.1.7` and Claude Agent ACP `0.70.0`.
+Codex keeps `INITIAL_AGENT_MODE=agent` and its ACP-advertised ChatGPT flow.
+Claude authentication exposes only bounded status plus a fixed backend-owned
+login action; the browser cannot supply a command or receive process output.
+Custom ACP remains a JSON argv array for the selected identity. Secret values
+and child environments are not logged.
 
 ## Internal Task Runtime Contract
 
@@ -123,10 +134,25 @@ is never added to MCP or Work browser projections. The existing `/startAgent`
 Agent ID response remains unchanged. After completed or failed state commits,
 the local delivery coordinator may move `pending_delivery -> sending ->
 accepted|delivery_unknown`. It may release `sending` back to
-`pending_delivery` only when it proves Speak submission never began.
-`accepted` means the SDK Speak request returned normally, not that playback
-finished. `delivery_unknown` is not retried automatically. Cancelled Work stays
-`not_ready` for delivery.
+`pending_delivery` only when it proves submission did not occur.
+
+Completed Work stores `FinalPresentation(speech="The work is done.",
+inline=<cleaned full result>)`. Delivery serializes only `objective`, `result`,
+and `result_truncated` after the `LOCAL_WORK_COMPLETED` marker. The complete
+UTF-8 envelope is at most 8 KiB, the normalized objective is at most 1 KiB, and
+the result keeps the longest leading substring that fits valid compact JSON.
+The exact active session returns `CompletionThinkOutcome` as `accepted`,
+`unavailable`, or `rejected`. `accepted` means the SDK Think request returned
+normally, not that the LLM answered or playback finished. `unavailable`
+releases the claim; `rejected` means a received HTTP non-2xx response and may
+use one fixed APPEND fallback. Any ambiguous exception records
+`delivery_unknown`, is not retried, and cannot fall back. Failed Work keeps its
+safe APPEND error; cancelled Work stays `not_ready` for delivery.
+
+If the exact session disappears between a definite Think rejection and the
+fallback call, the existing state model records terminal `delivery_unknown`
+instead of releasing to pending; this prevents a second Think/fallback attempt.
+This interface remains experimental until the required live acceptance passes.
 
 ## Token Shape
 

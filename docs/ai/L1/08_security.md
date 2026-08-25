@@ -17,7 +17,11 @@
 | Next build/run | `AGENT_BACKEND_URL`                                                    |
 | FastAPI        | `AGORA_APP_ID`, `AGORA_APP_CERTIFICATE`, `AGENT_GREETING`, `HOST`, `PORT` |
 | Local launcher | `VOICE_ACP_LOCAL_RUNTIME`, `VOICE_ACP_WORKSPACE`, `VOICE_ACP_COMMAND_JSON` |
-| ACP child      | trimmed inherited env plus `INITIAL_AGENT_MODE=agent` and explicit `CODEX_PATH` / API-key pass-through |
+| ACP child      | trimmed inherited env plus profile allowlists: Codex `INITIAL_AGENT_MODE`, `CODEX_PATH`, `CODEX_API_KEY`, `OPENAI_API_KEY`; Claude `CLAUDE_CONFIG_DIR`, `ANTHROPIC_API_KEY` |
+
+The fixed Claude authentication-status subprocess uses the same trimmed
+boundary: required process basics plus only `CLAUDE_CONFIG_DIR` and
+`ANTHROPIC_API_KEY`. It never inherits Agora credentials from FastAPI.
 
 Mark `AGORA_APP_CERTIFICATE` as a sensitive secret in whichever host runs the Python service. The certificate value never appears in `web/`.
 
@@ -81,9 +85,10 @@ If you need real auth, add a FastAPI dependency that validates a header on each 
 - `server/scripts/run_fake_server.py` accepts the same routes with no validation. Do not deploy it.
 - The web client does not encrypt or sign the browser → Next → FastAPI path beyond TLS at the host level.
 
-## Local Codex Boundary
+## Local Coding Agent Boundary
 
-- `/local/workspace`, `/local/workspace/browse`, `/local/runtime`, and
+- `/local/workspace`, `/local/workspace/browse`, `/local/agent`,
+  `/local/auth/claude-code`, `/local/runtime`, and
   `/validation/admin/*` are registered on the FastAPI app only when
   `server.create_app(enable_local_routes=True)` — i.e. when
   `VOICE_ACP_LOCAL_RUNTIME=1`. Ordinary and public deployments build the default
@@ -106,9 +111,12 @@ If you need real auth, add a FastAPI dependency that validates a header on each 
   alone never exposes these routes.
 - The native macOS picker runs in the backend process, so the browser receives
   only the selected status payload and never direct filesystem-picker access.
+- Claude authentication runs only fixed status and login commands. The browser
+  cannot submit command text, receives no credential/process output, and one
+  backend operation owns at most one Terminal login window.
 - Project Folder gives ACP a resolved working-directory context. It is not a
   filesystem sandbox or access-control boundary; do not rely on it for isolation.
-- `CodexAcpClient` does not log ACP JSON-RPC frames, environment values,
+- `LocalAcpClient` does not log ACP JSON-RPC frames, environment values,
   authentication data, raw reasoning, or private protocol identifiers. Callback
   storage retains only safe update-kind summaries and bounded permission prompts.
 - Readiness failures return fixed safe messages rather than exception text,
@@ -129,9 +137,12 @@ If you need real auth, add a FastAPI dependency that validates a header on each 
 - A targeted Work receipt privately persists its originating Agora Agent ID so
   completion cannot be redirected to a newer session. The new receipt field is
   never exposed through MCP or Work browser projections, activity, or delivery
-  logs; the existing `/startAgent` lifecycle contract remains unchanged. Only
-  the bounded, redacted stored speech/error is submitted to the exact active
-  Agent session.
+  logs; the existing `/startAgent` lifecycle contract remains unchanged.
+  Completed Work stores a bounded, redacted inline result and fixed fallback;
+  its at-most-8-KiB JSON envelope is submitted only to the exact active Agent
+  session. The static Managed prompt treats envelope fields as untrusted data,
+  not instructions, and forbids reading code, paths, logs, warnings, protocol
+  fields, or identifiers aloud. Never log the envelope or SDK error body.
 - No lifecycle HTTP Work/permission route is exposed. The dedicated public MCP
   app exposes only four tools, authenticates before reading request bodies,
   enforces Host/Origin/method/content-type policy and a 64 KiB pre-read cap,

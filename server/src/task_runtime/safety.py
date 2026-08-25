@@ -26,7 +26,8 @@ _ENV_ASSIGNMENT = re.compile(
     r"(?P<value>[^\s,;]+)"
 )
 _URL_CREDENTIALS = re.compile(
-    r"(?i)(?P<scheme>[a-z][a-z0-9+.-]*://)(?P<credentials>[^/@\s]+@)"
+    r"(?i)(?<![a-z0-9+.-])"
+    r"(?P<scheme>[a-z][a-z0-9+.-]*://)(?P<credentials>[^/@\s]+@)"
 )
 _PEM_BLOCK = re.compile(
     r"-----BEGIN [A-Z0-9 ]*(?:PRIVATE KEY|CERTIFICATE)-----.*?"

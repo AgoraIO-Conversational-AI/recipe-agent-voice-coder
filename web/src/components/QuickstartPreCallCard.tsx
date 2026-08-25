@@ -38,7 +38,7 @@ export function QuickstartPreCallCard({
         <button
           type="button"
           onClick={onOpenSettings}
-          className="self-end -mr-2 -mt-2 flex h-10 items-center gap-2 rounded-xl px-3 text-xs font-medium text-muted-foreground transition-[color,background-color,transform] duration-150 hover:bg-white/5 hover:text-foreground active:scale-[0.96]"
+          className="self-end -mr-2 -mt-2 flex h-10 items-center gap-2 rounded-xl px-3 text-xs font-medium text-white/50 transition-[color,background-color,transform] duration-150 hover:bg-white/10 hover:text-white active:scale-[0.96]"
           aria-label="Open local coding setup"
         >
           <Settings2 className="h-4 w-4" aria-hidden="true" />

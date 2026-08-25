@@ -21,8 +21,11 @@ export function getPreCallLocalAction(
   if (checking) {
     return { kind: 'checking', label: 'Checking local setup…', disabled: true, ready: false }
   }
-  if (!workspace || workspaceNeedsConfiguration(workspace) || runtime?.state !== 'ready') {
+  if (!workspace || workspaceNeedsConfiguration(workspace)) {
     return { kind: 'configure', label: 'Choose Project Folder', disabled: false, ready: false }
+  }
+  if (runtime?.state !== 'ready') {
+    return { kind: 'configure', label: 'Open Local Coding Setup', disabled: false, ready: false }
   }
   return { kind: 'start', label: 'Start Conversation', disabled: false, ready: true }
 }

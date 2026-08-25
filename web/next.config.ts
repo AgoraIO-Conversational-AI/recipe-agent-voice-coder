@@ -71,6 +71,14 @@ const nextConfig: NextConfig = {
         source: '/api/local/runtime',
         destination: `${backendUrl}/local/runtime`,
       },
+      {
+        source: '/api/local/agent',
+        destination: `${backendUrl}/local/agent`,
+      },
+      {
+        source: '/api/local/auth/claude-code',
+        destination: `${backendUrl}/local/auth/claude-code`,
+      },
     ]
   },
 }

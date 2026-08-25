@@ -1,6 +1,9 @@
 import type {
+  AgentSelectionResult,
+  AgentSettingsStatus,
   BrowseOperationStatus,
   BrowseWorkspaceOutcome,
+  ClaudeAuthStatus,
   LocalRuntimeStatus,
   WorkspaceStatus,
 } from '@/lib/workspace'
@@ -105,14 +108,46 @@ export async function getWorkspace(): Promise<WorkspaceStatus> {
 export async function getLocalRuntime(): Promise<LocalRuntimeStatus> {
   return readLocalResponse<LocalRuntimeStatus>(
     await fetch(`${API_BASE_URL}/local/runtime`, { method: 'GET' }),
-    'Failed to get local Codex runtime readiness',
+    'Failed to get local coding agent readiness',
   )
 }
 
 export async function startLocalRuntime(): Promise<LocalRuntimeStatus> {
   return readLocalResponse<LocalRuntimeStatus>(
     await fetch(`${API_BASE_URL}/local/runtime`, { method: 'POST' }),
-    'Failed to start the local Codex runtime',
+    'Failed to start the local coding agent',
+  )
+}
+
+export async function getAgentSettings(): Promise<AgentSettingsStatus> {
+  return readLocalResponse<AgentSettingsStatus>(
+    await fetch(`${API_BASE_URL}/local/agent`, { method: 'GET' }),
+    'Failed to get local coding Agent settings',
+  )
+}
+
+export async function selectAgentProfile(profileId: string): Promise<AgentSelectionResult> {
+  return readLocalResponse<AgentSelectionResult>(
+    await fetch(`${API_BASE_URL}/local/agent`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_id: profileId }),
+    }),
+    'Could not select the local coding Agent',
+  )
+}
+
+export async function getClaudeAuthStatus(): Promise<ClaudeAuthStatus> {
+  return readLocalResponse<ClaudeAuthStatus>(
+    await fetch(`${API_BASE_URL}/local/auth/claude-code`, { method: 'GET' }),
+    'Could not check Claude Code sign-in',
+  )
+}
+
+export async function startClaudeSignIn(): Promise<ClaudeAuthStatus> {
+  return readLocalResponse<ClaudeAuthStatus>(
+    await fetch(`${API_BASE_URL}/local/auth/claude-code`, { method: 'POST' }),
+    'Could not open Claude Code sign-in',
   )
 }
 

@@ -10,7 +10,7 @@ type QuickstartPreCallCardProps = {
   error: string | null
   primaryLabel: string
   primaryDisabled: boolean
-  workspaceReady: boolean
+  localSetupReady: boolean
   primaryButtonRef?: Ref<HTMLButtonElement>
   onStartConversation: () => void
   onOpenSettings?: () => void
@@ -21,7 +21,7 @@ export function QuickstartPreCallCard({
   error,
   primaryLabel,
   primaryDisabled,
-  workspaceReady,
+  localSetupReady,
   primaryButtonRef,
   onStartConversation,
   onOpenSettings,
@@ -39,7 +39,7 @@ export function QuickstartPreCallCard({
           type="button"
           onClick={onOpenSettings}
           className="self-end -mr-2 -mt-2 flex h-10 items-center gap-2 rounded-xl px-3 text-xs font-medium text-muted-foreground transition-[color,background-color,transform] duration-150 hover:bg-white/5 hover:text-foreground active:scale-[0.96]"
-          aria-label="Open Project Folder settings"
+          aria-label="Open local coding setup"
         >
           <Settings2 className="h-4 w-4" aria-hidden="true" />
           Settings
@@ -50,10 +50,10 @@ export function QuickstartPreCallCard({
         Built on Agora&apos;s flagship Conversational AI engine, for effortless agentic conversations.
       </p>
 
-      {workspaceReady ? (
+      {localSetupReady ? (
         <p className="mt-7 flex items-center gap-2 text-xs font-medium text-emerald-400">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.1)]" />
-          Project Folder ready
+          Coding Agent ready
         </p>
       ) : null}
 
@@ -61,7 +61,7 @@ export function QuickstartPreCallCard({
         ref={primaryButtonRef}
         onClick={onStartConversation}
         disabled={isLoading || primaryDisabled}
-        className={`${workspaceReady ? 'mt-6' : 'mt-12'} h-11 w-full rounded-lg border border-primary bg-primary text-sm font-medium text-black transition-transform duration-150 hover:border-white hover:bg-white hover:text-black active:scale-[0.96] disabled:hover:border-primary disabled:hover:bg-primary disabled:hover:text-black`}
+        className={`${localSetupReady ? 'mt-6' : 'mt-12'} h-11 w-full rounded-lg border border-primary bg-primary text-sm font-medium text-black transition-transform duration-150 hover:border-white hover:bg-white hover:text-black active:scale-[0.96] disabled:hover:border-primary disabled:hover:bg-primary disabled:hover:text-black`}
         aria-label={isLoading ? 'Starting conversation with AI agent' : primaryLabel}
       >
         {isLoading ? (

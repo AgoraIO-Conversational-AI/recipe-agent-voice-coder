@@ -7,13 +7,13 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LoadingSkeleton } from '@/components/LoadingSkeleton'
-import { ProjectFolderSettings } from '@/components/ProjectFolderSettings'
+import { LocalCodingSetup } from '@/components/LocalCodingSetup'
 import { QuickstartPreCallCard } from '@/components/QuickstartPreCallCard'
 import { ShareButton } from '@/components/share-button'
 import { getPreCallLocalAction } from '@/lib/local-runtime'
-import type { LocalRuntimeStatus, WorkspaceStatus } from '@/lib/workspace'
+import type { AgentSettingsStatus, LocalRuntimeStatus, WorkspaceStatus } from '@/lib/workspace'
 import { workspaceNeedsConfiguration } from '@/lib/workspace'
-import { getConfig, getWorkspace, startAgent, startLocalRuntime, stopAgent } from '@/services/api'
+import { getAgentSettings, getConfig, getWorkspace, startAgent, startLocalRuntime, stopAgent } from '@/services/api'
 import type { AgoraRenewalTokens, AgoraTokenData } from '@/types/conversation'
 
 const ConversationComponent = dynamic(() => import('@/components/ConversationComponent'), {
@@ -81,6 +81,7 @@ export default function LandingPage() {
   const [error, setError] = useState<string | null>(null)
   const [agentJoinError, setAgentJoinError] = useState(false)
   const [workspaceStatus, setWorkspaceStatus] = useState<WorkspaceStatus | null>(null)
+  const [agentSettings, setAgentSettings] = useState<AgentSettingsStatus | null>(null)
   const [workspaceError, setWorkspaceError] = useState<string | null>(null)
   const [runtimeStatus, setRuntimeStatus] = useState<LocalRuntimeStatus | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -98,8 +99,9 @@ export default function LandingPage() {
     let cancelled = false
     const loadReadiness = async () => {
       try {
-        const status = await getWorkspace()
+        const [settings, status] = await Promise.all([getAgentSettings(), getWorkspace()])
         if (cancelled) return
+        setAgentSettings(settings)
         setWorkspaceStatus(status)
         setWorkspaceError(null)
         if (workspaceNeedsConfiguration(status)) {
@@ -113,13 +115,16 @@ export default function LandingPage() {
         if (runtime.state === 'ready') {
           setWorkspaceError(null)
           setError(null)
+        } else if (runtime.state === 'authentication_required') {
+          setWorkspaceError(null)
+          setSettingsOpen(true)
         } else {
           setWorkspaceError(runtime.error ?? 'Could not finish local setup. Try again.')
           setSettingsOpen(true)
         }
       } catch (nextError) {
         if (cancelled) return
-        const message = nextError instanceof Error ? nextError.message : 'Could not load local Codex runtime readiness'
+        const message = nextError instanceof Error ? nextError.message : 'Could not load local coding Agent readiness'
         setWorkspaceError(message)
         setSettingsOpen(true)
       } finally {
@@ -244,7 +249,7 @@ export default function LandingPage() {
               error={error}
               primaryLabel={localAction.label}
               primaryDisabled={localAction.disabled}
-              workspaceReady={localAction.ready}
+              localSetupReady={localAction.ready}
               primaryButtonRef={startConversationRef}
               onStartConversation={handleStartConversation}
               onOpenSettings={localRuntimeEnabled ? () => setSettingsOpen(true) : undefined}
@@ -305,21 +310,25 @@ export default function LandingPage() {
       </footer>
 
       {localRuntimeEnabled ? (
-        <ProjectFolderSettings
+        <LocalCodingSetup
           open={settingsOpen}
+          agentSettings={agentSettings}
           status={workspaceStatus}
           runtimeStatus={runtimeStatus}
           initialError={workspaceError}
+          onAgentSettingsChange={setAgentSettings}
           onStatusChange={(status) => {
             setWorkspaceStatus(status)
             setWorkspaceError(null)
             setError(null)
-            if (!workspaceNeedsConfiguration(status)) {
-              setSettingsOpen(false)
-              requestAnimationFrame(() => startConversationRef.current?.focus())
-            }
           }}
           onRuntimeStatusChange={setRuntimeStatus}
+          onReady={() => {
+            setWorkspaceError(null)
+            setError(null)
+            setSettingsOpen(false)
+            requestAnimationFrame(() => startConversationRef.current?.focus())
+          }}
           onClose={() => {
             if (localAction.kind === 'start') {
               setSettingsOpen(false)

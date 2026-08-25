@@ -20,8 +20,8 @@ export async function selectWorkspaceWithRuntimeRefresh(
   try {
     const workspace = await select()
     const runtime = await getRuntime()
-    if (runtime.state !== 'ready') {
-      throw new Error(runtime.error ?? 'The local Codex runtime is not ready')
+    if (runtime.state !== 'ready' && runtime.state !== 'authentication_required') {
+      throw new Error(runtime.error ?? 'The local coding agent is not ready')
     }
     publishRuntime(runtime)
     return { workspace, runtime }

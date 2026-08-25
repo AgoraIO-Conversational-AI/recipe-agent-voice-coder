@@ -19,6 +19,16 @@ export interface WorkspaceStatus {
   workspace: WorkspaceScope | null
 }
 
+export interface AgentSettingsStatus {
+  profiles: AgentProfile[]
+  selected_profile: AgentProfile
+}
+
+export interface AgentSelectionResult {
+  settings: AgentSettingsStatus
+  runtime: LocalRuntimeStatus
+}
+
 export type BrowseOperationState = 'picking' | 'ready' | 'cancelled' | 'failed'
 
 export interface BrowseOperationStatus {
@@ -35,6 +45,13 @@ export type LocalRuntimeState = 'configuration_required' | 'starting' | 'authent
 export interface LocalRuntimeStatus {
   state: LocalRuntimeState
   workspace: WorkspaceStatus
+  error: string | null
+}
+
+export type ClaudeAuthState = 'signed_out' | 'waiting' | 'signed_in' | 'failed'
+
+export interface ClaudeAuthStatus {
+  state: ClaudeAuthState
   error: string | null
 }
 

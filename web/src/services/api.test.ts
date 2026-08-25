@@ -3,11 +3,15 @@ import { afterEach, expect, test } from 'bun:test'
 import {
   browseWorkspace,
   clearWorkspace,
+  getAgentSettings,
+  getClaudeAuthStatus,
   getConfig,
   getLocalRuntime,
   getWorkspace,
+  selectAgentProfile,
   selectWorkspace,
   startAgent,
+  startClaudeSignIn,
   startLocalRuntime,
   stopAgent,
 } from './api'
@@ -290,6 +294,50 @@ test('startLocalRuntime explicitly posts to the readiness route', async () => {
   expect(status.state).toBe('ready')
   expect(lastCall.url).toContain('/api/local/runtime')
   expect(lastCall.init?.method).toBe('POST')
+})
+
+test('getAgentSettings returns both local coding Agent profiles', async () => {
+  mockFetch(200, {
+    code: 0,
+    msg: 'success',
+    data: {
+      profiles: [{ id: 'codex' }, { id: 'claude-code' }],
+      selected_profile: { id: 'codex' },
+    },
+  })
+
+  const status = await getAgentSettings()
+
+  expect(status.profiles.map((profile) => profile.id)).toEqual(['codex', 'claude-code'])
+  expect(lastCall.url).toBe('/api/local/agent')
+})
+
+test('selectAgentProfile posts only the selected profile id', async () => {
+  mockFetch(200, {
+    code: 0,
+    msg: 'success',
+    data: {
+      settings: { profiles: [], selected_profile: { id: 'claude-code' } },
+      runtime: { state: 'configuration_required', workspace: {}, error: null },
+    },
+  })
+
+  await selectAgentProfile('claude-code')
+
+  expect(lastCall.url).toBe('/api/local/agent')
+  expect(lastCall.init?.method).toBe('PUT')
+  expect(JSON.parse(String(lastCall.init?.body))).toEqual({ profile_id: 'claude-code' })
+})
+
+test('Claude sign-in helpers never send a browser-controlled command', async () => {
+  mockFetch(200, { code: 0, msg: 'success', data: { state: 'waiting', error: null } })
+  await startClaudeSignIn()
+  expect(lastCall.url).toBe('/api/local/auth/claude-code')
+  expect(lastCall.init?.method).toBe('POST')
+  expect(lastCall.init?.body).toBeUndefined()
+
+  mockFetch(200, { code: 0, msg: 'success', data: { state: 'signed_in', error: null } })
+  expect((await getClaudeAuthStatus()).state).toBe('signed_in')
 })
 
 test('local Workspace helpers preserve bounded backend validation errors', async () => {

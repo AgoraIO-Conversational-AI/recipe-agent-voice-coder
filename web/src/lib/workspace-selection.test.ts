@@ -59,3 +59,21 @@ test('cancelled browse is silent and does not refresh runtime', async () => {
   expect(runtimeCalls).toBe(0)
   expect(published).toEqual([])
 })
+
+test('authentication-required keeps the selected folder for sign-in retry', async () => {
+  const published: Array<LocalRuntimeStatus | null> = []
+  const authRequired: LocalRuntimeStatus = {
+    ...failedRuntime,
+    state: 'authentication_required',
+    error: 'Sign in to Claude Code, then retry.',
+  }
+
+  const selected = await selectWorkspaceWithRuntimeRefresh(
+    async () => workspace,
+    async () => authRequired,
+    (runtime) => published.push(runtime),
+  )
+
+  expect(selected).toEqual({ workspace, runtime: authRequired })
+  expect(published).toEqual([null, authRequired])
+})

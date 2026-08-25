@@ -53,7 +53,7 @@ test('every non-ready runtime routes the primary action to Settings', () => {
   for (const state of ['configuration_required', 'starting', 'authentication_required', 'failed'] as const) {
     expect(getPreCallLocalAction(true, savedWorkspace, runtime(state, 'Bounded setup failure'), false)).toEqual({
       kind: 'configure',
-      label: 'Choose Project Folder',
+      label: 'Open Local Coding Setup',
       disabled: false,
       ready: false,
     })

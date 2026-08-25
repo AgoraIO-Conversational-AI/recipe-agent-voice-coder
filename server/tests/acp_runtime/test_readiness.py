@@ -6,6 +6,7 @@ import pytest
 
 from acp_runtime.acp_client import AcpAuthenticationRequired, AcpSession
 from acp_runtime.readiness import LocalRuntimeCoordinator
+from acp_runtime.settings import AgentSettingsService, AgentSettingsStore
 from acp_runtime.workspace import WorkspaceConfigStore, WorkspaceService
 
 
@@ -103,7 +104,26 @@ async def test_authentication_failures_return_an_actionable_local_state(ready, f
     status = await runtime.start()
 
     assert status.state == "authentication_required"
-    assert status.error == "Sign in to ChatGPT, then retry the local Codex runtime."
+    assert status.error == "Sign in to ChatGPT, then retry."
+
+
+@pytest.mark.anyio
+async def test_claude_authentication_failure_names_claude(tmp_path, fake_acp):
+    settings = AgentSettingsService(AgentSettingsStore(tmp_path / "agent.json"))
+    settings.select("claude-code")
+    workspace = WorkspaceService(
+        WorkspaceConfigStore(tmp_path / "workspace.json"),
+        profile_provider=lambda: settings.status().selected_profile,
+    )
+    project = tmp_path / "project"
+    project.mkdir()
+    workspace.select(str(project))
+    fake_acp.open_error = AcpAuthenticationRequired("claude-code")
+
+    status = await LocalRuntimeCoordinator(workspace, fake_acp).start()
+
+    assert status.state == "authentication_required"
+    assert status.error == "Sign in to Claude Code, then retry."
 
 
 @pytest.mark.anyio
@@ -117,7 +137,7 @@ async def test_other_acp_failures_return_an_actionable_local_state(ready, fake_a
 
     assert status.state == "failed"
     assert status.error == (
-        "Could not start the local Codex runtime. Check the local runtime setup and retry."
+        "Could not start the selected coding agent. Check local setup and retry."
     )
     assert "private" not in status.error
     assert "secret" not in status.error
@@ -194,3 +214,30 @@ async def test_close_waits_for_an_inflight_open_then_closes_the_new_session(read
 
     assert fake_acp.close_calls == 1
     assert runtime.status().state == "starting"
+
+
+@pytest.mark.anyio
+async def test_profile_change_closes_old_session_before_reopening_same_folder(
+    tmp_path, fake_acp
+):
+    settings = AgentSettingsService(AgentSettingsStore(tmp_path / "agent.json"))
+    workspace = WorkspaceService(
+        WorkspaceConfigStore(tmp_path / "workspace.json"),
+        profile_provider=lambda: settings.status().selected_profile,
+    )
+    project = tmp_path / "project"
+    project.mkdir()
+    workspace.select(str(project))
+    runtime = LocalRuntimeCoordinator(workspace, fake_acp)
+    await runtime.start()
+
+    settings.select("claude-code")
+    status = await runtime.activate_selection()
+
+    assert status.state == "ready"
+    assert status.workspace.profile.id == "claude-code"
+    assert fake_acp.events == [
+        ("open", str(project)),
+        ("close", None),
+        ("open", str(project)),
+    ]

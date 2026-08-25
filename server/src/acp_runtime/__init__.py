@@ -14,6 +14,7 @@ from .acp_client import (
 from .readiness import LocalRuntimeCoordinator, LocalRuntimeStatus
 from .local_client import LocalAcpClient
 from .settings import AgentSettingsService, AgentSettingsStatus, AgentSettingsStore
+from .claude_auth import ClaudeAuthService, ClaudeAuthStatus
 from .workspace import (
     AgentProfile,
     WorkspaceConfigStore,
@@ -39,6 +40,8 @@ __all__ = [
     "AgentSettingsService",
     "AgentSettingsStatus",
     "AgentSettingsStore",
+    "ClaudeAuthService",
+    "ClaudeAuthStatus",
     "WorkspaceConfigStore",
     "WorkspaceScope",
     "WorkspaceService",

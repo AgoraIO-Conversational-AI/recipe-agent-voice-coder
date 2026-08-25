@@ -60,11 +60,14 @@ def test_default_app_gates_loopback_and_admin_routes(server_module):
         # Derivative loopback + admin surfaces are absent entirely (404, not 403).
         assert client.get("/local/workspace").status_code == 404
         assert client.get("/local/runtime").status_code == 404
+        assert client.get("/local/agent").status_code == 404
+        assert client.get("/local/auth/claude-code").status_code == 404
         assert client.post("/local/workspace/browse").status_code == 404
         assert client.post("/validation/admin/permissions", json={}).status_code == 404
 
     with TestClient(opted_in) as client:
         assert client.get("/local/workspace").status_code == 200
+        assert client.get("/local/agent").status_code == 200
 
 
 def test_local_lifespan_recovers_work_before_acceptance(server_module):

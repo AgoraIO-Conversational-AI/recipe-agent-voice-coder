@@ -15,8 +15,11 @@ from .browse import (
     WorkspaceBrowseCoordinator,
 )
 from .loopback import require_loopback
+from .claude_auth import ClaudeAuthService
 from .picker import DirectoryPicker
-from .readiness import LocalRuntimeCoordinator
+from .profiles import get_agent_definition
+from .readiness import LocalRuntimeCoordinator, LocalRuntimeStatus
+from .settings import AgentSettingsService, AgentSettingsStatus
 from .workspace import WorkspaceService, WorkspaceStatus
 
 
@@ -24,11 +27,15 @@ class SelectWorkspaceRequest(BaseModel):
     path: str
 
 
+class SelectAgentRequest(BaseModel):
+    profile_id: str
+
+
 @dataclass(frozen=True)
 class WorkspaceChange:
     """One explicit Workspace mutation a future Work/permission gate may block."""
 
-    operation: Literal["replace", "clear"]
+    operation: Literal["replace", "clear", "profile"]
     path: str | None = None
 
 
@@ -47,7 +54,13 @@ class AllowWorkspaceSwitch:
         return None
 
 
-def _envelope(status: WorkspaceStatus | BrowseOperationStatus) -> dict[str, object]:
+@dataclass(frozen=True)
+class AgentSelectionResult:
+    settings: AgentSettingsStatus
+    runtime: LocalRuntimeStatus
+
+
+def _envelope(status: object) -> dict[str, object]:
     return {
         "code": 0,
         "msg": "success",
@@ -127,6 +140,66 @@ def build_workspace_router(
     return router
 
 
+def build_agent_router(
+    *,
+    settings: AgentSettingsService,
+    workspace: WorkspaceService,
+    runtime: LocalRuntimeCoordinator,
+    switch_guard: WorkspaceSwitchGuard | None = None,
+) -> APIRouter:
+    """Expose selected Agent metadata without exposing process configuration."""
+    router = APIRouter(prefix="/local/agent", include_in_schema=False)
+    resolved_guard = switch_guard or AllowWorkspaceSwitch()
+
+    @router.get("")
+    async def get_agent_settings(request: Request) -> dict[str, object]:
+        require_loopback(request)
+        return _envelope(settings.status())
+
+    @router.put("")
+    async def select_agent(
+        payload: SelectAgentRequest, request: Request
+    ) -> dict[str, object]:
+        require_loopback(request)
+        try:
+            get_agent_definition(payload.profile_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        previous = workspace.status()
+        conflict = resolved_guard.check(
+            previous, WorkspaceChange(operation="profile")
+        )
+        if conflict is not None:
+            raise HTTPException(status_code=409, detail=conflict)
+        current = settings.status().selected_profile.id
+        if current != payload.profile_id:
+            await runtime.close()
+            selected = settings.select(payload.profile_id)
+        else:
+            selected = settings.status()
+        readiness = await runtime.start()
+        return _envelope(AgentSelectionResult(settings=selected, runtime=readiness))
+
+    return router
+
+
+def build_claude_auth_router(*, service: ClaudeAuthService) -> APIRouter:
+    """Expose one predefined Claude Code sign-in flow on loopback only."""
+    router = APIRouter(prefix="/local/auth/claude-code", include_in_schema=False)
+
+    @router.get("")
+    async def get_claude_auth(request: Request) -> dict[str, object]:
+        require_loopback(request)
+        return _envelope(await service.status())
+
+    @router.post("")
+    async def start_claude_auth(request: Request) -> dict[str, object]:
+        require_loopback(request)
+        return _envelope(await service.start())
+
+    return router
+
+
 def build_runtime_router(*, runtime: LocalRuntimeCoordinator) -> APIRouter:
     """Expose local readiness without exposing ACP process details."""
     router = APIRouter(prefix="/local/runtime", include_in_schema=False)
@@ -174,8 +247,11 @@ async def _select_and_activate_status(
     if readiness.state == "ready":
         return selected
 
+    if readiness.state == "authentication_required":
+        return selected
+
     service.restore(previous)
     raise HTTPException(
         status_code=503,
-        detail=readiness.error or "The local Codex runtime is not ready.",
+        detail=readiness.error or "The local coding agent is not ready.",
     )

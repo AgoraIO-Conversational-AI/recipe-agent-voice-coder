@@ -34,7 +34,7 @@ _RESTART_ERROR = "Local Runner restarted before Work completed."
 _STOPPED_ERROR = "Local Runner stopped before Work completed."
 _WORK_ERROR = "The coding Agent could not complete this Work."
 _SWITCH_CONFLICT = (
-    "Wait for the current Work or permission decision before changing Project Folder."
+    "Wait for the current Work or permission decision before changing local setup."
 )
 MAX_QUEUED_OBJECTIVE_BYTES = 1024 * 1024
 TerminalWorkCallback = Callable[[str], None]

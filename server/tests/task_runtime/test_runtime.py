@@ -502,8 +502,7 @@ async def test_runtime_rejects_unready_workspace_and_guard_blocks_active_switch(
         context.workspace.status(), SimpleNamespace(operation="replace")
     )
     assert reason == (
-        "Wait for the current Work or permission decision before changing "
-        "Project Folder."
+        "Wait for the current Work or permission decision before changing local setup."
     )
 
     await context.runtime.cancel_work(accepted.work_id)

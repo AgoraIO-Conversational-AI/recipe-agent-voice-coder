@@ -1,10 +1,14 @@
 """Loopback Project Folder API tests with a fake native picker."""
 
+import asyncio
+
+import httpx
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from acp_runtime.acp_client import AcpAuthenticationRequired, AcpSession
-from acp_runtime.readiness import LocalRuntimeCoordinator
+from acp_runtime.readiness import LocalRuntimeCoordinator, LocalRuntimeStatus
 from acp_runtime.routes import (
     build_agent_router,
     build_claude_auth_router,
@@ -92,6 +96,64 @@ def make_agent_app(tmp_path, switch_guard=None):
         )
     )
     return app, settings, service, runtime, fake_acp
+
+
+@pytest.mark.anyio
+async def test_shared_setup_lock_serializes_concurrent_agent_switches(tmp_path):
+    settings = AgentSettingsService(AgentSettingsStore(tmp_path / "agent.json"))
+    workspace = WorkspaceService(
+        WorkspaceConfigStore(tmp_path / "workspace.json"),
+        profile_provider=lambda: settings.status().selected_profile,
+    )
+    project = tmp_path / "project"
+    project.mkdir()
+    workspace.select(str(project))
+    close_entered = asyncio.Event()
+    release_close = asyncio.Event()
+
+    class BlockingRuntime:
+        def __init__(self):
+            self.start_calls = 0
+
+        async def close(self):
+            close_entered.set()
+            await release_close.wait()
+
+        async def start(self):
+            self.start_calls += 1
+            return LocalRuntimeStatus(state="ready", workspace=workspace.status())
+
+    runtime = BlockingRuntime()
+    app = FastAPI()
+    app.include_router(
+        build_agent_router(
+            settings=settings,
+            workspace=workspace,
+            runtime=runtime,
+            mutation_lock=asyncio.Lock(),
+        )
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1"
+    ) as client:
+        select_claude = asyncio.create_task(
+            client.put("/local/agent", json={"profile_id": "claude-code"})
+        )
+        await close_entered.wait()
+        select_codex = asyncio.create_task(
+            client.put("/local/agent", json={"profile_id": "codex"})
+        )
+        await asyncio.sleep(0)
+        assert runtime.start_calls == 0
+        release_close.set()
+        claude_response, codex_response = await asyncio.gather(
+            select_claude, select_codex
+        )
+
+    assert claude_response.json()["data"]["settings"]["selected_profile"]["id"] == "claude-code"
+    assert codex_response.json()["data"]["settings"]["selected_profile"]["id"] == "codex"
+    assert settings.status().selected_profile.id == "codex"
 
 
 def wait_for_browse(client: TestClient, operation_id: str) -> dict:

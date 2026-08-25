@@ -78,9 +78,12 @@ sign-in never forces a second selection.
 
 ## ACP Boundary
 
-`LocalRuntimeCoordinator` serializes starts, replacements, and close operations
-so one `AcpClientPort` session is active at most once. It opens only a ready
-workspace, closes the old session before opening a replacement, and converts
+One application-owned setup lock serializes each complete folder replacement,
+profile switch, clear, or explicit runtime retry, including its guard,
+persistence, and activation steps. `LocalRuntimeCoordinator` also serializes
+starts, replacements, and close operations so one `AcpClientPort` session is
+active at most once. It opens only a ready workspace, closes the old session
+before opening a replacement, and converts
 authentication failures into profile-specific safe sign-in instructions. Other
 failures use one fixed safe message and never include exception text. Ordinary
 FastAPI startup invokes only shutdown cleanup; the local browser flow explicitly

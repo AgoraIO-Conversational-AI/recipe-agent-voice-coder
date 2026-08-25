@@ -1,5 +1,6 @@
 """Loopback-only Project Folder configuration routes."""
 
+import asyncio
 from dataclasses import asdict
 from dataclasses import dataclass
 from typing import Literal, Protocol
@@ -74,15 +75,21 @@ def build_workspace_router(
     picker: DirectoryPicker,
     runtime: LocalRuntimeCoordinator,
     switch_guard: WorkspaceSwitchGuard | None = None,
+    mutation_lock: asyncio.Lock | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/local/workspace", include_in_schema=False)
     resolved_guard = switch_guard or AllowWorkspaceSwitch()
+    resolved_lock = mutation_lock or asyncio.Lock()
 
-    async def select_for_browse(path: str) -> WorkspaceStatus:
-        try:
+    async def select_and_activate(path: str) -> WorkspaceStatus:
+        async with resolved_lock:
             return await _select_and_activate_status(
                 service, runtime, resolved_guard, path
             )
+
+    async def select_for_browse(path: str) -> WorkspaceStatus:
+        try:
+            return await select_and_activate(path)
         except HTTPException as exc:
             detail = (
                 exc.detail
@@ -121,21 +128,20 @@ def build_workspace_router(
         payload: SelectWorkspaceRequest, request: Request
     ) -> dict[str, object]:
         require_loopback(request)
-        return _envelope(
-            await _select_and_activate_status(
-                service, runtime, resolved_guard, payload.path
-            )
-        )
+        return _envelope(await select_and_activate(payload.path))
 
     @router.delete("")
     async def clear_workspace(request: Request) -> dict[str, object]:
         require_loopback(request)
-        previous = service.status()
-        conflict = resolved_guard.check(previous, WorkspaceChange(operation="clear"))
-        if conflict is not None:
-            raise HTTPException(status_code=409, detail=conflict)
-        await runtime.close()
-        return _envelope(service.clear())
+        async with resolved_lock:
+            previous = service.status()
+            conflict = resolved_guard.check(
+                previous, WorkspaceChange(operation="clear")
+            )
+            if conflict is not None:
+                raise HTTPException(status_code=409, detail=conflict)
+            await runtime.close()
+            return _envelope(service.clear())
 
     return router
 
@@ -146,10 +152,12 @@ def build_agent_router(
     workspace: WorkspaceService,
     runtime: LocalRuntimeCoordinator,
     switch_guard: WorkspaceSwitchGuard | None = None,
+    mutation_lock: asyncio.Lock | None = None,
 ) -> APIRouter:
     """Expose selected Agent metadata without exposing process configuration."""
     router = APIRouter(prefix="/local/agent", include_in_schema=False)
     resolved_guard = switch_guard or AllowWorkspaceSwitch()
+    resolved_lock = mutation_lock or asyncio.Lock()
 
     @router.get("")
     async def get_agent_settings(request: Request) -> dict[str, object]:
@@ -165,20 +173,23 @@ def build_agent_router(
             get_agent_definition(payload.profile_id)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        previous = workspace.status()
-        conflict = resolved_guard.check(
-            previous, WorkspaceChange(operation="profile")
-        )
-        if conflict is not None:
-            raise HTTPException(status_code=409, detail=conflict)
-        current = settings.status().selected_profile.id
-        if current != payload.profile_id:
-            await runtime.close()
-            selected = settings.select(payload.profile_id)
-        else:
-            selected = settings.status()
-        readiness = await runtime.start()
-        return _envelope(AgentSelectionResult(settings=selected, runtime=readiness))
+        async with resolved_lock:
+            previous = workspace.status()
+            conflict = resolved_guard.check(
+                previous, WorkspaceChange(operation="profile")
+            )
+            if conflict is not None:
+                raise HTTPException(status_code=409, detail=conflict)
+            current = settings.status().selected_profile.id
+            if current != payload.profile_id:
+                await runtime.close()
+                selected = settings.select(payload.profile_id)
+            else:
+                selected = settings.status()
+            readiness = await runtime.start()
+            return _envelope(
+                AgentSelectionResult(settings=selected, runtime=readiness)
+            )
 
     return router
 
@@ -200,9 +211,12 @@ def build_claude_auth_router(*, service: ClaudeAuthService) -> APIRouter:
     return router
 
 
-def build_runtime_router(*, runtime: LocalRuntimeCoordinator) -> APIRouter:
+def build_runtime_router(
+    *, runtime: LocalRuntimeCoordinator, mutation_lock: asyncio.Lock | None = None
+) -> APIRouter:
     """Expose local readiness without exposing ACP process details."""
     router = APIRouter(prefix="/local/runtime", include_in_schema=False)
+    resolved_lock = mutation_lock or asyncio.Lock()
 
     @router.get("")
     async def get_runtime(request: Request) -> dict[str, object]:
@@ -216,11 +230,12 @@ def build_runtime_router(*, runtime: LocalRuntimeCoordinator) -> APIRouter:
     @router.post("")
     async def start_runtime(request: Request) -> dict[str, object]:
         require_loopback(request)
-        return {
-            "code": 0,
-            "msg": "success",
-            "data": asdict(await runtime.start()),
-        }
+        async with resolved_lock:
+            return {
+                "code": 0,
+                "msg": "success",
+                "data": asdict(await runtime.start()),
+            }
 
     return router
 

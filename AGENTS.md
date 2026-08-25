@@ -278,7 +278,7 @@ Before finishing a change:
 
 ### General rules
 
-- **No AI tool names** — never mention claude, cursor, copilot, cody, aider, gemini, codex, chatgpt, or gpt-3/4 in commit messages or PR descriptions.
+- **No incidental AI attribution** — do not mention the authoring tool in commit messages or PR descriptions. Product and adapter names may be used when the change directly implements, tests, or documents that integration.
 - **No Co-Authored-By trailers** — omit AI attribution lines.
 - **No `--no-verify`** — let git hooks run normally.
 - **No git config changes** — do not modify `user.name` or `user.email`.

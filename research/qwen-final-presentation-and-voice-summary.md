@@ -1,7 +1,7 @@
 # Qwen final presentation compared with local voice summary design
 
-Research date: 2026-08-22  
-Qwen source inspected: [`QwenAudio/qwen-audio-agent@7b363f668932e85fafbd2a23b24d60caba7ce4d9`](https://github.com/QwenAudio/qwen-audio-agent/tree/7b363f668932e85fafbd2a23b24d60caba7ce4d9) (`main` at inspection time)  
+Research date: 2026-08-22<br>
+Qwen source inspected: [`QwenAudio/qwen-audio-agent@7b363f668932e85fafbd2a23b24d60caba7ce4d9`](https://github.com/QwenAudio/qwen-audio-agent/tree/7b363f668932e85fafbd2a23b24d60caba7ce4d9) (`main` at inspection time)<br>
 Local comparison point: `recipe-agent-voice-coder@c843e08876a1b8f99dabf16af0b07efe4283c8dc`
 
 ## Conclusion

@@ -32,8 +32,30 @@ test('ready setup can close without a save step', () => {
 
 test('other startup failures offer one retry', () => {
   expect(getLocalSetupAction({ profileId: 'codex', hasFolder: true, runtimeState: 'failed' })).toEqual({
-    kind: 'retry',
+    kind: 'retry-runtime',
     label: 'Try Again',
     canClose: false,
   })
+})
+
+test('folder activation failure retries with a fresh folder selection', () => {
+  expect(
+    getLocalSetupAction({
+      profileId: 'codex',
+      hasFolder: false,
+      runtimeState: 'configuration_required',
+      recovery: 'folder',
+    }),
+  ).toEqual({ kind: 'retry-folder', label: 'Try Again', canClose: false })
+})
+
+test('Claude sign-in timeout becomes an explicit retry', () => {
+  expect(
+    getLocalSetupAction({
+      profileId: 'claude-code',
+      hasFolder: true,
+      runtimeState: 'authentication_required',
+      recovery: 'auth-timeout',
+    }),
+  ).toEqual({ kind: 'retry-auth', label: 'Try Again', canClose: false })
 })

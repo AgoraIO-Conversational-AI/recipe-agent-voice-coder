@@ -3,10 +3,11 @@
 import asyncio
 import json
 import logging
+import os
 import shlex
 import time
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Literal
+from typing import Awaitable, Callable, Literal, Mapping
 
 from .profiles import CLAUDE_ACP_PACKAGE
 
@@ -40,6 +41,8 @@ StatusRunner = Callable[[], Awaitable[tuple[int, str]]]
 TerminalLauncher = Callable[[tuple[str, ...]], Awaitable[None]]
 Clock = Callable[[], float]
 logger = logging.getLogger("uvicorn.error")
+_PROCESS_ENV_NAMES = ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL")
+_CLAUDE_ENV_NAMES = ("CLAUDE_CONFIG_DIR", "ANTHROPIC_API_KEY")
 
 
 @dataclass(frozen=True)
@@ -48,11 +51,23 @@ class ClaudeAuthStatus:
     error: str | None = None
 
 
+def _status_environment(
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    values = os.environ if environ is None else environ
+    return {
+        name: values[name]
+        for name in (*_PROCESS_ENV_NAMES, *_CLAUDE_ENV_NAMES)
+        if values.get(name)
+    }
+
+
 async def _run_status() -> tuple[int, str]:
     process = await asyncio.create_subprocess_exec(
         *CLAUDE_AUTH_STATUS_COMMAND,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
+        env=_status_environment(),
     )
     try:
         stdout, _ = await asyncio.wait_for(process.communicate(), timeout=15)

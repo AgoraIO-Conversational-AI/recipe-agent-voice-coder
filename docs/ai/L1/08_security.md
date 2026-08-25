@@ -19,6 +19,10 @@
 | Local launcher | `VOICE_ACP_LOCAL_RUNTIME`, `VOICE_ACP_WORKSPACE`, `VOICE_ACP_COMMAND_JSON` |
 | ACP child      | trimmed inherited env plus profile allowlists: Codex `INITIAL_AGENT_MODE`, `CODEX_PATH`, `CODEX_API_KEY`, `OPENAI_API_KEY`; Claude `CLAUDE_CONFIG_DIR`, `ANTHROPIC_API_KEY` |
 
+The fixed Claude authentication-status subprocess uses the same trimmed
+boundary: required process basics plus only `CLAUDE_CONFIG_DIR` and
+`ANTHROPIC_API_KEY`. It never inherits Agora credentials from FastAPI.
+
 Mark `AGORA_APP_CERTIFICATE` as a sensitive secret in whichever host runs the Python service. The certificate value never appears in `web/`.
 
 ## Token Issuance

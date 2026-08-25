@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { getLocalSetupAction } from '@/lib/local-setup'
+import type { LocalSetupRecovery } from '@/lib/local-setup'
 import type { AgentSettingsStatus, LocalRuntimeStatus, WorkspaceStatus } from '@/lib/workspace'
 import { workspaceNeedsConfiguration } from '@/lib/workspace'
 import { applyBrowseOutcomeWithRuntimeRefresh, selectWorkspaceWithRuntimeRefresh } from '@/lib/workspace-selection'
@@ -55,6 +56,7 @@ export function LocalCodingSetup({
   const [busyMode, setBusyMode] = useState<BusyMode | null>(null)
   const [busyAgentLabel, setBusyAgentLabel] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [recovery, setRecovery] = useState<LocalSetupRecovery>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
   const selectionInFlightRef = useRef(false)
   const authPollGenerationRef = useRef(0)
@@ -64,6 +66,7 @@ export function LocalCodingSetup({
     profileId,
     hasFolder,
     runtimeState: runtimeStatus?.state ?? 'configuration_required',
+    recovery,
   })
   const visibleError = error ?? initialError
   const isBusy = busyMode !== null
@@ -73,6 +76,7 @@ export function LocalCodingSetup({
       setBusyMode(null)
       setBusyAgentLabel(null)
       setError(null)
+      setRecovery(null)
       setManualPath('')
       selectionInFlightRef.current = false
       authPollGenerationRef.current += 1
@@ -112,8 +116,10 @@ export function LocalCodingSetup({
     onStatusChange(runtime.workspace)
     if (runtime.state === 'failed') {
       setError(runtime.error ?? 'Could not start the coding Agent')
+      setRecovery(null)
     } else {
       setError(null)
+      setRecovery(null)
     }
     if (runtime.state === 'ready') onReady()
   }
@@ -123,6 +129,7 @@ export function LocalCodingSetup({
     setBusyMode('agent')
     setBusyAgentLabel(agentSettings?.profiles.find((profile) => profile.id === nextProfileId)?.label ?? null)
     setError(null)
+    setRecovery(null)
     authPollGenerationRef.current += 1
     try {
       const result = await selectAgentProfile(nextProfileId)
@@ -140,19 +147,24 @@ export function LocalCodingSetup({
     if (selectionInFlightRef.current) return
     selectionInFlightRef.current = true
     const previousError = error
+    const previousRecovery = recovery
     setBusyMode(mode)
     setError(null)
+    setRecovery(null)
     try {
       const outcome = await select()
       if (outcome.state === 'cancelled') {
         setError(previousError)
+        setRecovery(previousRecovery)
         return
       }
       onStatusChange(outcome.workspace)
       onRuntimeStatusChange(outcome.runtime)
+      setRecovery(null)
       if (outcome.runtime.state === 'ready') onReady()
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : 'Could not finish local setup')
+      setRecovery('folder')
     } finally {
       selectionInFlightRef.current = false
       setBusyMode(null)
@@ -173,6 +185,7 @@ export function LocalCodingSetup({
   const retryRuntime = async () => {
     setBusyMode('retry')
     setError(null)
+    setRecovery(null)
     try {
       publishRuntime(await startLocalRuntime())
     } catch (nextError) {
@@ -185,6 +198,7 @@ export function LocalCodingSetup({
   const signInToClaude = async () => {
     setBusyMode('auth')
     setError(null)
+    setRecovery(null)
     const generation = authPollGenerationRef.current + 1
     authPollGenerationRef.current = generation
     try {
@@ -201,7 +215,10 @@ export function LocalCodingSetup({
         const remaining = deadline - Date.now()
         if (remaining > 0) await wait(Math.min(1000, remaining))
       }
-      if (authPollGenerationRef.current === generation) setError('Sign-in was not completed. Try again when ready.')
+      if (authPollGenerationRef.current === generation) {
+        setError('Sign-in was not completed. Try again when ready.')
+        setRecovery('auth-timeout')
+      }
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : 'Could not finish Claude Code sign-in')
     } finally {
@@ -324,8 +341,8 @@ export function LocalCodingSetup({
           autoFocus
           disabled={isBusy}
           onClick={() => {
-            if (primaryAction === 'sign-in') void signInToClaude()
-            else if (primaryAction === 'retry') void retryRuntime()
+            if (primaryAction === 'sign-in' || primaryAction === 'retry-auth') void signInToClaude()
+            else if (primaryAction === 'retry-runtime') void retryRuntime()
             else void runBrowseSelection()
           }}
           className="mt-6 h-11 w-full rounded-xl bg-primary font-medium text-primary-foreground hover:bg-primary/90"
@@ -338,7 +355,7 @@ export function LocalCodingSetup({
           {primaryLabel}
         </Button>
 
-        {setupAction.kind === 'sign-in' ? (
+        {setupAction.kind === 'sign-in' || setupAction.kind === 'retry-auth' ? (
           <button
             type="button"
             disabled={isBusy}

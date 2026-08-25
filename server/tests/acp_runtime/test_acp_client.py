@@ -315,9 +315,11 @@ async def test_prompt_preserves_nonleading_and_unrecognized_warnings(
 
 @pytest.mark.anyio
 async def test_prompt_front_bounds_oversized_agent_text(tmp_path, project):
+    result_file = tmp_path / "oversized-result.txt"
+    result_file.write_text("树" * 100000, encoding="utf-8")
     fake_agent = FakeAcpAgentProcess(
         tmp_path / "acp-oversized-result.txt",
-        prompt_result="树" * 100000,
+        prompt_result_file=result_file,
     )
     client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
     await client.open(str(project))

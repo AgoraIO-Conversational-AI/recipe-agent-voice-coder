@@ -9,6 +9,7 @@ from acp_runtime.claude_auth import (
     ClaudeAuthService,
     ClaudeAuthStatus,
 )
+from acp_runtime import claude_auth
 
 
 class FakeStatusRunner:
@@ -36,6 +37,36 @@ class FakeClock:
 
     def __call__(self) -> float:
         return self.value
+
+
+@pytest.mark.anyio
+async def test_status_process_receives_only_trimmed_claude_environment(monkeypatch):
+    captured = {}
+
+    class FakeProcess:
+        returncode = 0
+
+        async def communicate(self):
+            return b'{"loggedIn":true}', b""
+
+    async def fake_subprocess(*_args, **kwargs):
+        captured.update(kwargs)
+        return FakeProcess()
+
+    monkeypatch.setenv("PATH", "/usr/local/bin:/usr/bin")
+    monkeypatch.setenv("HOME", "/Users/example")
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", "/Users/example/.claude")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-secret")
+    monkeypatch.setenv("AGORA_APP_CERTIFICATE", "agora-secret")
+    monkeypatch.setattr(claude_auth.asyncio, "create_subprocess_exec", fake_subprocess)
+
+    await claude_auth._run_status()
+
+    assert captured["env"]["PATH"] == "/usr/local/bin:/usr/bin"
+    assert captured["env"]["HOME"] == "/Users/example"
+    assert captured["env"]["CLAUDE_CONFIG_DIR"] == "/Users/example/.claude"
+    assert captured["env"]["ANTHROPIC_API_KEY"] == "anthropic-secret"
+    assert "AGORA_APP_CERTIFICATE" not in captured["env"]
 
 
 @pytest.mark.anyio

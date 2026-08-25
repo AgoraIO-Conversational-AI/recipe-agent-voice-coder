@@ -7,6 +7,7 @@ HTTP APIs:
 - POST /startAgent     -> Agent.start()
 - POST /stopAgent      -> Agent.stop()
 """
+import asyncio
 import logging
 import os
 import random
@@ -372,21 +373,28 @@ def create_app(
     )
     application.include_router(router)
     if enable_local_routes:
+        local_setup_lock = asyncio.Lock()
         application.include_router(
             build_workspace_router(
                 service=workspace_service,
                 picker=MacOSDirectoryPicker(),
                 runtime=local_runtime,
                 switch_guard=switch_guard,
+                mutation_lock=local_setup_lock,
             )
         )
-        application.include_router(build_runtime_router(runtime=local_runtime))
+        application.include_router(
+            build_runtime_router(
+                runtime=local_runtime, mutation_lock=local_setup_lock
+            )
+        )
         application.include_router(
             build_agent_router(
                 settings=agent_settings,
                 workspace=workspace_service,
                 runtime=local_runtime,
                 switch_guard=switch_guard,
+                mutation_lock=local_setup_lock,
             )
         )
         application.include_router(build_claude_auth_router(service=claude_auth))

@@ -1,7 +1,6 @@
 """ACP process/session lifecycle tests through the runtime's public boundary."""
 
 import asyncio
-import json
 from types import SimpleNamespace
 
 import acp
@@ -12,7 +11,8 @@ from acp_runtime.acp_client import (
     AcpPermissionOutcome,
     AcpPromptObserver,
 )
-from acp_runtime.codex import CodexAcpClient, CodexCommand
+from acp_runtime.local_client import LocalAcpClient
+from acp_runtime.profiles import AGENT_DEFINITIONS
 from tests.acp_runtime.fake_acp_agent import FakeAcpAgentProcess
 
 
@@ -49,71 +49,11 @@ def fake_agent(tmp_path):
     return FakeAcpAgentProcess(tmp_path / "acp-requests.txt")
 
 
-def test_default_codex_command_is_pinned_and_needs_no_global_install():
-    assert CodexCommand.default().argv == (
-        "npx",
-        "-y",
-        "@agentclientprotocol/codex-acp@1.1.7",
-    )
-    assert CodexCommand.default().env["INITIAL_AGENT_MODE"] == "agent"
-
-
-def test_environment_overrides_preserve_agent_mode_and_pass_only_supported_auth(
-    monkeypatch,
-):
-    monkeypatch.setenv("INITIAL_AGENT_MODE", "agent-full-access")
-    monkeypatch.setenv("CODEX_PATH", "/opt/codex/bin/codex")
-    monkeypatch.setenv("CODEX_API_KEY", "codex-test-secret")
-    monkeypatch.setenv("OPENAI_API_KEY", "openai-test-secret")
-
-    command = CodexCommand.from_environment()
-
-    assert command.argv == CodexCommand.default().argv
-    assert command.env == {
-        "INITIAL_AGENT_MODE": "agent",
-        "CODEX_PATH": "/opt/codex/bin/codex",
-        "CODEX_API_KEY": "codex-test-secret",
-        "OPENAI_API_KEY": "openai-test-secret",
-    }
-
-
-def test_custom_acp_command_is_a_json_argv_array_never_a_shell_string(monkeypatch):
-    monkeypatch.setenv(
-        "VOICE_ACP_COMMAND_JSON",
-        json.dumps(["/opt/acp/bin/custom-agent", "--stdio", "value with spaces"]),
-    )
-
-    command = CodexCommand.from_environment()
-
-    assert command.argv == (
-        "/opt/acp/bin/custom-agent",
-        "--stdio",
-        "value with spaces",
-    )
-    assert command.env["INITIAL_AGENT_MODE"] == "agent"
-
-
-@pytest.mark.parametrize(
-    "value",
-    ["not-json", '"shell string"', "[]", '["valid", 3]'],
-)
-def test_invalid_custom_acp_command_fails_with_a_fixed_safe_message(monkeypatch, value):
-    monkeypatch.setenv("VOICE_ACP_COMMAND_JSON", value)
-
-    with pytest.raises(ValueError) as raised:
-        CodexCommand.from_environment()
-
-    assert str(raised.value) == (
-        "VOICE_ACP_COMMAND_JSON must be a JSON array of non-empty argument strings"
-    )
-    assert value not in str(raised.value)
-
-
 @pytest.mark.anyio
 async def test_client_initializes_and_creates_session_in_project_folder(
     fake_agent, project
 ):
-    client = CodexAcpClient(command=fake_agent.command)
+    client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
 
     session = await client.open(str(project))
 
@@ -152,10 +92,12 @@ async def test_close_treats_an_already_closed_transport_as_success(
 
     process = ProcessContext()
     monkeypatch.setattr(
-        "acp_runtime.codex.acp.spawn_agent_process",
+        "acp_runtime.local_client.acp.spawn_agent_process",
         lambda *_args, **_kwargs: process,
     )
-    client = CodexAcpClient(command=("fake-acp",))
+    client = LocalAcpClient(
+        lambda: AGENT_DEFINITIONS["codex"], command_override=("fake-acp",)
+    )
     await client.open(str(project))
 
     await client.close()
@@ -171,7 +113,7 @@ async def test_client_reuses_saved_auth_before_trying_advertised_chatgpt(
     fake_agent = FakeAcpAgentProcess(
         tmp_path / "acp-saved-auth-requests.txt", advertises_chatgpt=True
     )
-    client = CodexAcpClient(command=fake_agent.command)
+    client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
 
     await client.open(str(project))
 
@@ -188,7 +130,7 @@ async def test_client_authenticates_only_after_typed_auth_required_then_retries_
         advertises_chatgpt=True,
         requires_authentication=True,
     )
-    client = CodexAcpClient(command=fake_agent.command)
+    client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
 
     await client.open(str(project))
 
@@ -211,7 +153,7 @@ async def test_client_exposes_authentication_failure_as_typed_boundary_result(
         requires_authentication=True,
         authentication_fails=True,
     )
-    client = CodexAcpClient(command=fake_agent.command)
+    client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
 
     with pytest.raises(AcpAuthenticationRequired):
         await client.open(str(project))
@@ -232,7 +174,7 @@ async def test_client_does_not_relabel_post_auth_session_failure(tmp_path, proje
         requires_authentication=True,
         session_fails_after_authentication=True,
     )
-    client = CodexAcpClient(command=fake_agent.command)
+    client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
 
     with pytest.raises(acp.RequestError) as raised:
         await client.open(str(project))
@@ -255,7 +197,7 @@ async def test_client_does_not_guess_an_unadvertised_authentication_method(
         tmp_path / "acp-unadvertised-auth.txt",
         requires_authentication=True,
     )
-    client = CodexAcpClient(command=fake_agent.command)
+    client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
 
     with pytest.raises(AcpAuthenticationRequired):
         await client.open(str(project))
@@ -272,7 +214,7 @@ async def test_prompt_streams_only_safe_updates_and_returns_final_text(
         prompt_result="All tests passed.",
     )
     observer = RecordingPromptObserver()
-    client = CodexAcpClient(command=fake_agent.command)
+    client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
     await client.open(str(project))
 
     result = await client.prompt("Run the tests", observer)
@@ -298,13 +240,51 @@ async def test_prompt_removes_the_captured_leading_codex_skills_notice(
             "Repository structure:\n- README.md"
         ),
     )
-    client = CodexAcpClient(command=fake_agent.command)
+    client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
     await client.open(str(project))
 
     result = await client.prompt("Inspect the project", RecordingPromptObserver())
 
     assert result.final_text == "Repository structure:\n- README.md"
     await client.close()
+
+
+@pytest.mark.anyio
+async def test_claude_profile_preserves_codex_notice_text(tmp_path, project):
+    fake_agent = FakeAcpAgentProcess(
+        tmp_path / "claude-preserved-warning.txt",
+        prompt_result=f"{CODEX_SKILLS_NOTICE}\n\nUseful result.",
+    )
+    client = LocalAcpClient(
+        lambda: AGENT_DEFINITIONS["claude-code"],
+        command_override=fake_agent.command,
+    )
+    await client.open(str(project))
+
+    result = await client.prompt("Inspect the project", RecordingPromptObserver())
+
+    assert result.final_text == f"{CODEX_SKILLS_NOTICE}\n\nUseful result."
+    await client.close()
+
+
+@pytest.mark.anyio
+async def test_terminal_auth_is_reported_without_invoking_agent_auth(
+    tmp_path, project
+):
+    fake_agent = FakeAcpAgentProcess(
+        tmp_path / "claude-terminal-auth.txt",
+        requires_authentication=True,
+    )
+    client = LocalAcpClient(
+        lambda: AGENT_DEFINITIONS["claude-code"],
+        command_override=fake_agent.command,
+    )
+
+    with pytest.raises(AcpAuthenticationRequired) as raised:
+        await client.open(str(project))
+
+    assert raised.value.profile_id == "claude-code"
+    assert fake_agent.requests == ["initialize", "session/new", "process/exited"]
 
 
 @pytest.mark.anyio
@@ -322,7 +302,7 @@ async def test_prompt_preserves_nonleading_and_unrecognized_warnings(
         tmp_path / "acp-preserved-warning.txt",
         prompt_result=prompt_result,
     )
-    client = CodexAcpClient(command=fake_agent.command)
+    client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
     await client.open(str(project))
 
     result = await client.prompt("Inspect the project", RecordingPromptObserver())
@@ -337,7 +317,7 @@ async def test_prompt_front_bounds_oversized_agent_text(tmp_path, project):
         tmp_path / "acp-oversized-result.txt",
         prompt_result="树" * 100000,
     )
-    client = CodexAcpClient(command=fake_agent.command)
+    client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
     await client.open(str(project))
 
     result = await client.prompt("Inspect the project", RecordingPromptObserver())
@@ -357,7 +337,7 @@ async def test_prompt_maps_only_observer_selected_permission_option(
         requests_permission=True,
     )
     observer = RecordingPromptObserver(selected_option_id="allow-once")
-    client = CodexAcpClient(command=fake_agent.command)
+    client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
     await client.open(str(project))
 
     await client.prompt("Update the project", observer)
@@ -382,7 +362,7 @@ async def test_cancel_notifies_the_active_session_and_prompt_confirms_cancelled(
         blocks_until_cancel=True,
     )
     observer = RecordingPromptObserver()
-    client = CodexAcpClient(command=fake_agent.command)
+    client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
     await client.open(str(project))
     prompt = asyncio.create_task(client.prompt("Wait", observer))
     for _ in range(100):
@@ -404,7 +384,7 @@ async def test_concurrent_prompt_fails_closed(tmp_path, project):
         tmp_path / "acp-concurrent-requests.txt",
         blocks_until_cancel=True,
     )
-    client = CodexAcpClient(command=fake_agent.command)
+    client = LocalAcpClient(lambda: AGENT_DEFINITIONS["codex"], command_override=fake_agent.command)
     await client.open(str(project))
     active = asyncio.create_task(client.prompt("First", RecordingPromptObserver()))
     for _ in range(100):

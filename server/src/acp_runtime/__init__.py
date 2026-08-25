@@ -12,6 +12,7 @@ from .acp_client import (
     AcpSessionEvent,
 )
 from .readiness import LocalRuntimeCoordinator, LocalRuntimeStatus
+from .local_client import LocalAcpClient
 from .settings import AgentSettingsService, AgentSettingsStatus, AgentSettingsStore
 from .workspace import (
     AgentProfile,
@@ -33,6 +34,7 @@ __all__ = [
     "AcpSessionEvent",
     "LocalRuntimeCoordinator",
     "LocalRuntimeStatus",
+    "LocalAcpClient",
     "AgentProfile",
     "AgentSettingsService",
     "AgentSettingsStatus",

@@ -14,6 +14,10 @@ class AcpSession:
 class AcpAuthenticationRequired(RuntimeError):
     """The ACP client needs the user to complete its local sign-in flow."""
 
+    def __init__(self, profile_id: str = "codex") -> None:
+        super().__init__("ACP authentication required")
+        self.profile_id = profile_id
+
 
 @dataclass(frozen=True)
 class AcpSessionEvent:

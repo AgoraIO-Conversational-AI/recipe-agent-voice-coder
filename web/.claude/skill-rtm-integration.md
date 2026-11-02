@@ -58,7 +58,7 @@ import { AgoraVoiceAI } from 'agora-agent-client-toolkit'
 
 const voiceAI = await AgoraVoiceAI.init({
   rtcEngine: rtcClient,
-  rtmConfig: { rtmEngine: rtmClient },
+  rtmEngine: rtmClient,
   enableLog: true,
 })
 voiceAI.subscribeMessage(channelName)

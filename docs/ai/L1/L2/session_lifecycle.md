@@ -39,7 +39,7 @@ ConversationComponent.tsx
    │
    └─▶ new AgoraVoiceAI({
             rtcEngine,
-            rtmConfig: { rtmEngine: rtmClient },
+            rtmEngine: rtmClient,
         }).subscribeMessage(channel_name)
          Listens: TRANSCRIPT_UPDATED, AGENT_STATE_CHANGED, AGENT_METRICS,
                   MESSAGE_ERROR, MESSAGE_SAL_STATUS, AGENT_ERROR

@@ -47,7 +47,7 @@ async function connect() {
   // 4. Initialize AgoraVoiceAI (imperative API)
   const voiceAI = await AgoraVoiceAI.init({
     rtcEngine: rtcClient,
-    rtmConfig: { rtmEngine: rtmClient },
+    rtmEngine: rtmClient,
     enableLog: true,
   })
   voiceAI.subscribeMessage(config.channel_name)

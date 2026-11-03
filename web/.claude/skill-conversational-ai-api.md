@@ -22,7 +22,7 @@ import { AgoraVoiceAI, AgoraVoiceAIEvents } from 'agora-agent-client-toolkit'
 // Initialize after RTC client and RTM client are ready
 const voiceAI = await AgoraVoiceAI.init({
   rtcEngine: rtcClient,        // IAgoraRTCClient from agora-rtc-sdk-ng
-  rtmConfig: { rtmEngine: rtmClient },  // RTMClient from agora-rtm
+  rtmEngine: rtmClient,        // RTMClient from agora-rtm
   enableLog: true,
 })
 

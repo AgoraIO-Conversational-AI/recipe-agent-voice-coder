@@ -14,7 +14,7 @@
       "dependencies": {
         "@radix-ui/react-dropdown-menu": "^2.1.16",
         "@radix-ui/react-slot": "^1.2.4",
-        "agora-agent-client-toolkit": "1.2.0",
+        "agora-agent-client-toolkit": "2.9.1",
         "agora-agent-uikit": "1.1.0",
         "agora-rtc-react": "^2.5.1",
         "agora-rtc-sdk-ng": "^4.24.3",
@@ -247,7 +247,7 @@
 
     "@types/trusted-types": ["@types/trusted-types@2.0.7", "", {}, "sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw=="],
 
-    "agora-agent-client-toolkit": ["agora-agent-client-toolkit@1.2.0", "", { "optionalDependencies": { "@agora-js/report": ">=4.19.0", "jszip": ">=3.0.0" }, "peerDependencies": { "agora-rtc-sdk-ng": ">=4.23.4", "agora-rtm": ">=2.0.0" }, "optionalPeers": ["agora-rtm"] }, "sha512-rbSDfk6veGsvNxSgccPa1zCCJ7QQw0NjoETHiHSXGURkzw90KwOQ2ZIOX6dueMFvZLUBr1UPQodCpOHroHY5bw=="],
+    "agora-agent-client-toolkit": ["agora-agent-client-toolkit@2.9.1", "", { "optionalDependencies": { "@agora-js/report": ">=4.19.0", "jszip": ">=3.0.0" }, "peerDependencies": { "agora-rtc-sdk-ng": ">=4.23.4", "agora-rtm": ">=2.0.0" }, "optionalPeers": ["agora-rtm"] }, "sha512-9aCULU0srLcKaidzNwTzWtb/jreiDY3pZXbh1wmmlKNtcYZeWx1WSubTJ+FdE17wQO087yLMnsuprY5Y0Aa93g=="],
 
     "agora-agent-uikit": ["agora-agent-uikit@1.1.0", "", { "dependencies": { "@lottiefiles/dotlottie-react": "^0.17.13", "@radix-ui/react-dialog": "^1.1.15", "@radix-ui/react-dropdown-menu": "^2.1.16", "@radix-ui/react-popover": "^1.1.15", "@radix-ui/react-select": "^2.2.6", "@radix-ui/react-slot": "^1.2.4", "@radix-ui/react-switch": "^1.2.6", "class-variance-authority": "^0.7.1", "clsx": "^2.1.1", "cmdk": "^1.1.1", "dompurify": "^3.3.3", "lucide-react": ">=0.263.0", "tailwind-merge": "^3.4.0" }, "peerDependencies": { "agora-agent-client-toolkit": "^1.2.0", "agora-agent-client-toolkit-react": "^1.2.0", "agora-rtc-react": ">=2.0.0", "agora-rtm-sdk": ">=2.0.0", "react": ">=18.0.0", "react-dom": ">=18.0.0" }, "optionalPeers": ["agora-agent-client-toolkit", "agora-agent-client-toolkit-react", "agora-rtc-react", "agora-rtm-sdk"] }, "sha512-gDSleHFYavNEqf/SIUt8xA1Q+VAw4M9q/84MD/+fFG7Z15oSLH6hZnmI+8cr6yzPXBBXHX4dd9tRZod5UjaFyA=="],
 
@@ -600,6 +600,8 @@
     "@radix-ui/react-primitive/@radix-ui/react-slot": ["@radix-ui/react-slot@1.2.3", "", { "dependencies": { "@radix-ui/react-compose-refs": "1.1.2" }, "peerDependencies": { "@types/react": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" }, "optionalPeers": ["@types/react"] }, "sha512-aeNmHnBxbi2St0au6VBVC7JXFlhLlOnvIIlePNniyUNAClzmtAUEY8/pBiK3iHjufOlwA+c20/8jngo7xcrg8A=="],
 
     "@radix-ui/react-select/@radix-ui/react-slot": ["@radix-ui/react-slot@1.2.3", "", { "dependencies": { "@radix-ui/react-compose-refs": "1.1.2" }, "peerDependencies": { "@types/react": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" }, "optionalPeers": ["@types/react"] }, "sha512-aeNmHnBxbi2St0au6VBVC7JXFlhLlOnvIIlePNniyUNAClzmtAUEY8/pBiK3iHjufOlwA+c20/8jngo7xcrg8A=="],
+
+    "agora-agent-uikit/agora-agent-client-toolkit": ["agora-agent-client-toolkit@1.2.0", "", { "optionalDependencies": { "@agora-js/report": ">=4.19.0", "jszip": ">=3.0.0" }, "peerDependencies": { "agora-rtc-sdk-ng": ">=4.23.4", "agora-rtm": ">=2.0.0" }, "optionalPeers": ["agora-rtm"] }, "sha512-rbSDfk6veGsvNxSgccPa1zCCJ7QQw0NjoETHiHSXGURkzw90KwOQ2ZIOX6dueMFvZLUBr1UPQodCpOHroHY5bw=="],
 
     "agora-agent-uikit/lucide-react": ["lucide-react@1.9.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-6qVAmbgCjcJz7sAGSPSSJ++RAwjlK2XCbRrZKv63Ciko1KT8jX0//CXxgI3jg2HlJu8tADqdYlNDebmYjeoruA=="],
 
